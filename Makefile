@@ -1,15 +1,15 @@
 OCAMLC=ocamlfind ocamlc ${LIB}
 OCAMLOPT=ocamlfind ocamlc ${LIB}
 OCAMLDEP=ocamlfind ocamldep
-OCAMLYACC=menhir
 
 LIB=-package sexplib,ppx_sexp_conv
 LLIB=
 
-OBJS=ast.cmo parser.cmo lexer.cmo main.cmo
+INTF=parser.cmi
+OBJS=pident.cmo ast.cmo  parser.cmo lexer.cmo main.cmo
 OPT=-g
 
-loop: ${OBJS}
+loop: ${OBJS} ${INTF}
 	$(OCAMLC) ${LIB} ${OPT} -w -A -linkpkg -linkall -o $@ ${OBJS}
 
 depend:
@@ -22,7 +22,7 @@ parser.cmo: parser.ml parser.cmi
 	$(OCAMLC) -c $<
 
 parser.mli: parser.mly
-	$(OCAMLYACC) -v $<
+	menhir --infer -v $<
 
 %.cmi: %.mli
 	${OCAMLC} -c ${LIB} ${OPT} $<
