@@ -1,0 +1,5 @@
+int f (real a)
+{
+  int a;
+  a = 123;
+}

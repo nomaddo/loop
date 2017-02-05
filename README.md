@@ -1,7 +1,5 @@
-# f90
-a tiny subset of fortran 90 written in ocaml.
-
-This project aim to support all feature in fortran 90.
+# loop
+A tiny compiler for experiments of optimizations written in ocaml.
 
 ## build
 Requrement

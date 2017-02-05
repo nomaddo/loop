@@ -14,6 +14,7 @@ type typ =
 and expr =
   | Var    of Pident.path
   | Iconst of int
+  | Rconst of string
   | Call   of Pident.path * expr list
   | Aref   of Pident.path * expr list
 [@@deriving sexp]

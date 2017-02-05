@@ -60,10 +60,14 @@ let char = ['A'-'Z' 'a'-'z' '_' '0'-'9']
 
 let ops  = ['!' '$' '%' '&' '*' '+' '-' '.' '/' ':' '<' '=' '>' '?' '@' '^' '|' '~']
 
+let num = ['0' - '9']
+let num_head = ['1' '2' '3' '4' '5' '6' '7' '8' '9']
+
 rule token = parse
 | [' ' '\t']        { incr line_chars; token lexbuf }
 | ['\n']            { endline lexbuf; token lexbuf }
-| ['0'-'9']+ as lxm { update lexbuf; INTEGER (int_of_string lxm) }
+| (num_head num * '.' num * | '0' '.' num *) as str { update lexbuf; FLOAT str }
+| (num_head num * | '0') as str { update lexbuf; INTEGER (int_of_string str) }
 | '('               { update lexbuf; LPAREN }
 | ')'               { update lexbuf; RPAREN }
 | '['               { update lexbuf; LBRACKET }

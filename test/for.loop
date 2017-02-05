@@ -1,0 +1,15 @@
+int f ()
+{
+  for a = 1 to 2
+  {
+  }
+
+  for a = 1 downto 2
+  {
+  }
+
+  for a = 1 downto 2 by 1
+  {
+  }
+
+}

@@ -11,6 +11,7 @@
 %token VOID INT REAL
 %token LBRACE RBRACE
 %token <int> INTEGER
+%token <string> FLOAT
 %token EQ
 %token LBRACKET RBRACKET
 %token IF ELSE
@@ -108,6 +109,7 @@ block:
 
 expr:
 | INTEGER       { Iconst $1 }
+| FLOAT         { Rconst $1 }
 | expr OP0 expr { Call ($2, [$1; $3]) }
 | expr OP1 expr { Call ($2, [$1; $3]) }
 | expr OP2 expr { Call ($2, [$1; $3]) }
@@ -115,6 +117,7 @@ expr:
 | ident         { Var $1 }
 | ident LPAREN separated_list (COMMA, expr) RPAREN { Call ($1, $3) }
 | ident nonempty_list(LBRACKET expr RBRACKET { $2 }) { Aref ($1, $2) }
+| LPAREN expr RPAREN { $2 }
 
 ident:
 | MODULE DOT ident  { Ppath ($1, $3)}

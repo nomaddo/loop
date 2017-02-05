@@ -9,10 +9,10 @@ let main () =
     flush stdout;
     exit 0
     with
-    | _ -> begin
+    | _ as exn -> begin
         let (x, y, z) = ! Lexer.loc in
         Printf.printf "error: line %d, %d %d %d\n" (! Lexer.line) x y z;
-        exit 1
+        raise exn
       end
 
 let _ = main ()
