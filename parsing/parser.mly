@@ -16,6 +16,7 @@
 %token LBRACKET RBRACKET
 %token IF ELSE
 %token FOR TO DOWNTO BY
+%token PRIM
 
 %token WHILE
 %token DOT
@@ -27,16 +28,13 @@
 %token <Pident.path> OP2
 %token <Pident.path> OP3
 
-%left OP0
+%right OP0
 %left OP1
 %left OP2
 %left OP3
 
 %type  <Ast.t> main
 %start main
-
-%type  <Pident.path> ident
-%start ident
 
 %%
 
@@ -48,18 +46,22 @@ top_decl:
 | global_var SEMI { $1 }
 
 fundecl:
-| typ IDENT args block
+| typ declared_ident args block
   { Fundef ($1, $2, $3, $4) }
 
 global_var:
-| typ; IDENT; option(EQ expr { $2 })
+| typ; declared_ident; option(EQ expr { $2 })
   { Global_var ($1, $2, $3) }
+| typ; declared_ident; EQ PRIM IDENT
+  { Prim ($1, $2, $5) }
 
 typ:
 | VOID { Void }
 | INT  { Int }
 | REAL { Real }
 | typ LBRACKET option(expr) RBRACKET { Array ($1, $3) }
+| typ LPAREN separated_nonempty_list(COMMA, typ) RPAREN
+  { Lambda ($3, $1) }
 
 args:
 | LPAREN separated_list (COMMA, arg) RPAREN { $2 }
@@ -78,7 +80,7 @@ decl:
 | return_decl SEMI { $1 }
 
 var_decl:
-| typ; IDENT; option(EQ expr { $2 })
+| typ; declared_ident; option(EQ expr { $2 })
   { Decl ($1, $2, $3) }
 
 if_decl:
@@ -98,7 +100,7 @@ assign_decl:
 | ident EQ expr { Assign ($1, $3) }
 
 for_decl:
-| FOR IDENT EQ expr direction expr option (BY expr { $2 }) block
+| FOR declared_ident EQ expr direction expr option (BY expr { $2 }) block
   { For ($2, $4, $5, $6, $7, $8) }
 
 while_decl:
@@ -137,4 +139,11 @@ expr:
 
 ident:
 | MODULE DOT ident  { Ppath ($1, $3)}
+| declared_ident    { $1 }
+
+declared_ident:
 | IDENT             { Pident $1 }
+| LPAREN OP0 RPAREN { $2 }
+| LPAREN OP1 RPAREN { $2 }
+| LPAREN OP2 RPAREN { $2 }
+| LPAREN OP3 RPAREN { $2 }

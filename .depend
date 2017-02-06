@@ -1,8 +1,15 @@
-location.cmo :
-location.cmx :
-main.cmo : parser.cmi parse_tree.cmo
-main.cmx : parser.cmx parse_tree.cmx
-parse_tree.cmo : location.cmo
-parse_tree.cmx : location.cmx
-parser.cmo : parse_tree.cmo location.cmo parser.cmi
-parser.cmx : parse_tree.cmx location.cmx parser.cmi
+./driver/main.cmo :
+./driver/main.cmx :
+./parsing/ast.cmo :
+./parsing/ast.cmx :
+./parsing/parser.cmo : ./parsing/parser.cmi
+./parsing/parser.cmx : ./parsing/parser.cmi
+./parsing/parser.cmi :
+./parsing/pident.cmo :
+./parsing/pident.cmx :
+./typing/env.cmo :
+./typing/env.cmx :
+./typing/tident.cmo :
+./typing/tident.cmx :
+./typing/typed_ast.cmo :
+./typing/typed_ast.cmx :

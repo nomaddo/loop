@@ -10,6 +10,7 @@ type typ =
   | Int
   | Real
   | Array of typ * expr option
+  | Lambda of typ list * typ
 
 and expr =
   | Var    of Pident.path
@@ -20,19 +21,20 @@ and expr =
 [@@deriving sexp]
 
 type decl =
-  | Decl   of typ * string * expr option
+  | Decl   of typ * Pident.path * expr option
   | If     of expr * decl list * decl list option
   | Assign of Pident.path * expr
   | Astore of Pident.path * expr list * expr
-  | For    of string * expr * direction * expr * expr option * decl list
+  | For    of Pident.path * expr * direction * expr * expr option * decl list
   | While  of expr * decl list
   | Call   of Pident.path * expr list
   | Return of expr
 [@@deriving sexp]
 
 type top_decl =
-  | Fundef of typ * string * (typ * string) list * decl list
-  | Global_var of typ * string * expr option
+  | Fundef of typ * Pident.path * (typ * string) list * decl list
+  | Global_var of typ * Pident.path * expr option
+  | Prim   of typ * Pident.path * string
 [@@deriving sexp]
 
 type t = top_decl list

@@ -1,0 +1,6 @@
+int[A.a] arr;
+
+int main()
+{
+  arr[0] = 12;
+}

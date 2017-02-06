@@ -1,6 +1,7 @@
 (* File lexer.mll *)
 {
 open Parser        (* The type token is defined in parser.mli *)
+open Pident
 exception Error of string
 
 let loc = ref (-1, -1, -1)
@@ -51,6 +52,7 @@ let keyword_table =
     "by",     BY;
     "while",  WHILE;
     "return", RETURN;
+    "prim",   PRIM;
   ]
 }
 
