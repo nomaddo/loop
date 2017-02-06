@@ -27,6 +27,7 @@ type decl =
   | For    of string * expr * direction * expr * expr option * decl list
   | While  of expr * decl list
   | Call   of Pident.path * expr list
+  | Return of expr
 [@@deriving sexp]
 
 type top_decl =

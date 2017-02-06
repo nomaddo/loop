@@ -50,6 +50,7 @@ let keyword_table =
     "downto", DOWNTO;
     "by",     BY;
     "while",  WHILE;
+    "return", RETURN;
   ]
 }
 

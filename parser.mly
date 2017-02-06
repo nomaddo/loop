@@ -20,6 +20,8 @@
 %token WHILE
 %token DOT
 
+%token RETURN
+
 %token <Pident.path> OP0
 %token <Pident.path> OP1
 %token <Pident.path> OP2
@@ -73,14 +75,24 @@ decl:
 | while_decl       { $1 }
 | call_decl SEMI   { $1 }
 | astore_decl SEMI { $1 }
+| return_decl SEMI { $1 }
 
 var_decl:
 | typ; IDENT; option(EQ expr { $2 })
   { Decl ($1, $2, $3) }
 
 if_decl:
-| IF LPAREN expr RPAREN block option(ELSE block { $2 })
+| IF LPAREN expr RPAREN then_stmt else_stmt
   { If ($3, $5, $6) }
+
+then_stmt:
+| block { $1 }
+| decl  { [$1] }
+
+else_stmt:
+| /* empty */ { None }
+| ELSE block { Some $2 }
+| ELSE decl  { Some [$2] }
 
 assign_decl:
 | ident EQ expr { Assign ($1, $3) }
@@ -99,6 +111,10 @@ call_decl:
 astore_decl:
 | ident nonempty_list(LBRACKET expr RBRACKET { $2 }) EQ expr
   { Astore ($1, $2, $4) }
+
+return_decl:
+| RETURN expr { Return $2 }
+| RETURN LPAREN expr RPAREN { Return $3 }
 
 direction:
 | TO { To }
