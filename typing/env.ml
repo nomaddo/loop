@@ -8,7 +8,7 @@ let mkhash l =
   List.iter (fun (id, ty) -> Hashtbl.add h id ty) l;
   h
 
-let primitives =
+let primitives: (string, Ast.typ) Hashtbl.t =
   let open Ast in
   mkhash [
       "+",  Lambda ([Int; Int], Int);
@@ -32,5 +32,3 @@ let primitives =
       "==", Lambda ([Real; Real], Int);
       "!=", Lambda ([Real; Real], Int);
     ]
-
-let a = TypeEnv.empty

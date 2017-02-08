@@ -2,15 +2,16 @@ OCAMLC=ocamlfind ocamlc ${LIB}
 OCAMLOPT=ocamlfind ocamlc ${LIB}
 OCAMLDEP=ocamlfind ocamldep
 
-INCLUDE=-I parsing -I typing -I driver
-LIB=-package sexplib,ppx_sexp_conv
+INCLUDE=-I etc -I parsing -I typing -I driver
+LIB=-package ppx_deriving.show,batteries
 LLIB=
 
 INTF=parsing/
+ETC    =${addprefix etc/, flags.cmo}
 PARSING=${addprefix parsing/, pident.cmo ast.cmo parser.cmo lexer.cmo}
-TYPING= ${addprefix typing/, typed_ast.cmo env.cmo}
-DRIVER= ${addprefix driver/, main.cmo}
-OBJS= ${PARSING} ${TYPING} ${DRIVER}
+TYPING= ${addprefix typing/, tident.cmo btypes.cmo intf_mod.cmo typed_ast.cmo env.cmo}
+DRIVER= ${addprefix driver/, options.cmo main.cmo}
+OBJS= ${ETC} ${PARSING} ${TYPING} ${DRIVER}
 OPT=-g
 
 loop: ${INTF} ${OBJS}

@@ -1,36 +1,40 @@
-module TypeEnv = Map.Make (struct
-    type t = Pident.path
-    let compare  = compare
-  end)
+type direction = Ast.direction
+[@@deriving show]
 
-let mkhash l =
-  let h = Hashtbl.create 100 in
-  List.iter (fun (id, ty) -> Hashtbl.add h id ty) l;
-  h
+type  expr_core =
+  | Var    of Tident.path
+  | Iconst of int
+  | Rconst of string
+  | Call   of Tident.path *  expr list
+  | Aref   of Tident.path *  expr list
 
-let primitives =
-  let open Ast in
-  mkhash [
-      "+",  Lambda ([Int; Int], Int);
-      "-",  Lambda ([Int; Int], Int);
-      "*",  Lambda ([Int; Int], Int);
-      "/",  Lambda ([Int; Int], Int);
-      "+",  Lambda ([Real; Real], Real);
-      "-",  Lambda ([Real; Real], Real);
-      "*",  Lambda ([Real; Real], Real);
-      "/",  Lambda ([Real; Real], Real);
-      "<",  Lambda ([Int; Int], Int);
-      ">",  Lambda ([Int; Int], Int);
-      "<=", Lambda ([Int; Int], Int);
-      ">=", Lambda ([Int; Int], Int);
-      "==", Lambda ([Int; Int], Int);
-      "!=", Lambda ([Int; Int], Int);
-      "<",  Lambda ([Real; Real], Int);
-      ">",  Lambda ([Real; Real], Int);
-      "<=", Lambda ([Real; Real], Int);
-      ">=", Lambda ([Real; Real], Int);
-      "==", Lambda ([Real; Real], Int);
-      "!=", Lambda ([Real; Real], Int);
-    ]
+and expr = { expr_core: expr_core; expr_typ: Ast.typ }
+[@@deriving show]
 
-let a = TypeEnv.empty
+type typ =
+  | Void
+  | Int
+  | Real
+  | Array of  typ *  expr option
+  | Lambda of  typ list *  typ
+[@@deriving show]
+
+type  decl =
+  | Decl   of  typ * Tident.path *  expr option
+  | If     of  expr *  decl list *  decl list option
+  | Assign of Tident.path *  expr
+  | Astore of Tident.path *  expr list *  expr
+  | For    of Tident.path *  expr * direction *  expr *  expr option *  decl list
+  | While  of  expr *  decl list
+  | Call   of Tident.path *  expr list
+  | Return of  expr
+[@@deriving show]
+
+type  top_decl =
+  | Fundef     of  typ * Tident.path * ( typ * string) list *  decl list
+  | Global_var of  typ * Tident.path *  expr option
+  | Prim       of  typ * Tident.path * string
+[@@deriving show]
+
+type t = top_decl list
+[@@deriving show]
