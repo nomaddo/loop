@@ -1,7 +1,16 @@
-module TypeEnv = Map.Make (struct
-    type t = Pident.path
-    let compare  = compare
-  end)
+open Batteries
+
+type intf = { intf_name: Tident.path;
+              intf_mod:  (Pident.ident, Tident.path * intf lazy_t) Map.t;
+              intf_path: (Pident.ident, Tident.path * Ast.typ) Map.t }
+
+let rec recreate_intf intf =
+  { intf_name = Tident.recreate_path intf.intf_name;
+    intf_mod  = Map.foldi (fun p (t, intf) env ->
+                    Map.add p (Tident.recreate_path t, intf) env) Map.empty intf.intf_mod ;
+    intf_path = Map.foldi (fun p (t, intf) env ->
+                    Map.add p (Tident.recreate_path t, intf) env) Map.empty intf.intf_path ;
+  }
 
 let mkhash l =
   let h = Hashtbl.create 100 in

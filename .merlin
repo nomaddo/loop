@@ -1,4 +1,6 @@
-PKG sexplib
+PKG batteries
+PKG re
 S parsing
 S typing
 S driver
+S etc
