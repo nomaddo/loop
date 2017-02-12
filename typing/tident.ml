@@ -9,6 +9,11 @@ type path =
 let make_ident s =
   { name = s; id = Btypes.gen_sym () }
 
+let ident tpath =
+  match tpath with
+  | Tident ident -> ident
+  | _ -> failwith "ident_path"
+
 let path s =
   let id = make_ident s in
   Tident id

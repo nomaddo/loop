@@ -12,7 +12,7 @@ PARSING=${addprefix parsing/, pident.cmo ast.cmo parser.cmo lexer.cmo}
 TYPING= ${addprefix typing/, btypes.cmo tident.cmo intf_mod.cmo typed_ast.cmo env.cmo typing.cmo}
 DRIVER= ${addprefix driver/, options.cmo main.cmo}
 OBJS= ${ETC} ${PARSING} ${TYPING} ${DRIVER}
-OPT=-g
+OPT=-g -bin-annot
 
 loop: ${INTF} ${OBJS}
 	$(OCAMLC) ${LIB} ${OPT} -w -A -linkpkg -linkall -o $@ ${OBJS}

@@ -59,7 +59,7 @@ typ:
 | VOID { Void }
 | INT  { Int }
 | REAL { Real }
-| typ LBRACKET option(expr) RBRACKET { Array ($1, $3) }
+| typ LBRACKET expr RBRACKET { Array ($1, $3) }
 | typ LPAREN separated_nonempty_list(COMMA, typ) RPAREN
   { Lambda ($3, $1) }
 
@@ -67,7 +67,7 @@ args:
 | LPAREN separated_list (COMMA, arg) RPAREN { $2 }
 
 arg:
-| typ IDENT { ($1, $2) }
+| typ IDENT { ($2, $1) }
 
 decl:
 | var_decl SEMI    { $1 }

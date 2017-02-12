@@ -15,7 +15,7 @@ type  typ =
   | Void
   | Int
   | Real
-  | Array of  typ *  expr option
+  | Array of  typ *  expr
   | Lambda of  typ list *  typ
 [@@deriving show]
 
@@ -31,7 +31,7 @@ type  decl =
 [@@deriving show]
 
 type  top_decl =
-  | Fundef     of  typ * Pident.path * ( typ * string) list *  decl list
+  | Fundef     of  typ * Pident.path * (string * typ) list *  decl list
   | Global_var of  typ * Pident.path *  expr option
   | Prim       of  typ * Pident.path * string
 [@@deriving show]
