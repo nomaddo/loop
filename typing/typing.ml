@@ -33,6 +33,10 @@ and type_typ : Env.intf -> Ast.typ -> Typed_ast.typ = fun intf typ ->
   | Ast.Array (t, e) -> begin
       let s = type_typ intf t in
       let u = type_expr intf e in
+      begin match u.Typed_ast.expr_typ with
+      | Typed_ast.Int -> ()
+      | _ -> failwith "type_typ: array shape must be specified by int expr"
+      end;
       Typed_ast.Array (s, u)
     end
   | Ast.Lambda (typs, ret) ->
