@@ -38,3 +38,7 @@ type  top_decl =
 
 type t = top_decl list
 [@@deriving show]
+
+let ret_typ = function
+  | Lambda (_, ret) -> ret
+  | _ -> failwith "ret_typ"
