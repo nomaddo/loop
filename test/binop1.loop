@@ -1,6 +1,4 @@
-int (++) (int a, int b) { }
+int (++) (int a, int b) { return a + b; }
 int (*/) = 12;
 
-int a = 1 ++ 2;
-
-int[] (@@) (int[] a, int[] b) { x = x @@ y @@ z; }
+int c = 1 ++ 2;

@@ -2,10 +2,13 @@ int f ()
 {
   for a = 1 to 2
   {
+    return 3;
   }
 
   for a = 1 downto 2
   {
+    int b = a * a;
+    b = b + b;
   }
 
   for a = 1 downto 2 by 1

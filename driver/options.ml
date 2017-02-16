@@ -10,5 +10,8 @@ let tast =
 let intf =
   ("-I", Arg.String (fun s -> add Flags.search_path s), "")
 
+let dflag =
+  ("-d", Arg.Unit (fun () -> Flags.dflag := true), "")
+
 let spec =
-  [ ast; intf ]
+  [ ast; intf; dflag ]

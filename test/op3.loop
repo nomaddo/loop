@@ -1,6 +1,5 @@
-void sub ()
+void sub (int a)
 {
-  b[1] = a * 2;
-
-
+  real[3] b;
+  b[1] = itor(a) *. 2.0;
 }

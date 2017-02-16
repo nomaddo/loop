@@ -1,2 +1,2 @@
-void (void(int), int) f = a(1,2,3);
-int[] (int[], int[10 + 2]) g;
+void (void(int), int) f = prim hogehoge;
+void (void(int), int) g = 123;

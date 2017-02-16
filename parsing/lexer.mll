@@ -81,6 +81,7 @@ rule token = parse
 | ';'               { update lexbuf; SEMI }
 | ','               { update lexbuf; COMMA }
 | '.'               { update lexbuf; DOT }
+| "//" [^ '\n'] * ('\n' | eof)  { update lexbuf; token lexbuf }
 | ['=' '<' '>' '|' '&' '$'] ops * as str
   { update lexbuf; OP0 (Pident str) }
 | ['@' '^'] ops * as str

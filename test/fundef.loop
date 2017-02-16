@@ -1,6 +1,5 @@
 int f (int a, real b)
 {
   int c;
-  real d;
   if ( 1 ) { int e; } else { real d; }
 }
