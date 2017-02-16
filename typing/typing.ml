@@ -1,5 +1,5 @@
 open Batteries
-open Env
+open Tyenv
 open Etc
 open Typed_ast
 
@@ -7,10 +7,7 @@ let make_lambda ty args =
   List.map (fun (s, typ) -> typ) args
   |> fun l -> Ast.Lambda (l, ty)
 
-let type_decl: Env.intf -> Ast.decl -> (Env.intf * Typed_ast.decl) = fun intf decl ->
-  failwith "typ_decl"
-
-let rec assert_typ : Env.intf -> Typed_ast.typ -> Typed_ast.typ -> unit = fun intf expected typ ->
+let rec assert_typ intf expected typ =
   let open Typed_ast in
   match expected, typ with
   | Int, Int | Real, Real | Void, Void -> ()
@@ -19,32 +16,11 @@ let rec assert_typ : Env.intf -> Typed_ast.typ -> Typed_ast.typ -> unit = fun in
       assert_typ intf a b
   | Array _, Array _ -> not_implemented_yet ()
   | _ ->
-      failwith "assert_typ: "
+      Format.printf "%s: %s expected, but %s@."
+        __FILE__ (Typed_ast.show_typ expected) (Typed_ast.show_typ typ);
+      assert false
 
-let rec type_expr : Env.intf -> Ast.expr -> Typed_ast.expr = fun intf e ->
-  match e with
-  | Ast.Var pident ->
-      let tpath, typ = Env.lookup_ppath intf pident in
-      { expr_core = Var tpath; expr_typ = typ }
-  | Ast.Iconst i ->
-      { expr_core = Iconst i; expr_typ  = Int }
-  | Ast.Rconst s ->
-      { expr_core = Rconst s; expr_typ  = Real }
-  | Ast.Call (ppath, es) ->
-      let tes = List.map (type_expr intf) es in
-      let typs = List.map (fun e -> e.expr_typ) tes in
-      let tpath, rettyp = Env.lookup_ppath intf ppath in
-      assert_typ intf rettyp (Lambda (typs, ret_typ rettyp));
-      let expr_core : expr_core = Call (tpath, tes) in
-      { expr_core; expr_typ = ret_typ rettyp }
-  | Ast.Aref (ppath, es) ->
-      let tpath, array_typ = Env.lookup_ppath intf ppath in
-      let tes = List.map (type_expr intf) es in
-      let expr_typ = check_aref_args intf array_typ tes in
-      let expr_core = Aref (tpath, tes) in
-      { expr_core; expr_typ }
-
-and check_aref_args : Env.intf -> Typed_ast.typ -> Typed_ast.expr list -> Typed_ast.typ = fun intf typ l ->
+and check_aref_args intf typ l =
   match typ with
   | Array (typ, e) ->
       begin match l with
@@ -57,7 +33,86 @@ and check_aref_args : Env.intf -> Typed_ast.typ -> Typed_ast.expr list -> Typed_
       if l = [] then typ
       else failwith "type_array: the number of argument of array must be equal to its dimension "
 
-and type_typ : Env.intf -> Ast.typ -> Typed_ast.typ = fun intf typ ->
+let rec type_expr intf e =
+  match e with
+  | Ast.Var pident ->
+      let tpath, typ = Tyenv.lookup_ppath intf pident in
+      { expr_core = Var tpath; expr_typ = typ }
+  | Ast.Iconst i ->
+      { expr_core = Iconst i; expr_typ  = Int }
+  | Ast.Rconst s ->
+      { expr_core = Rconst s; expr_typ  = Real }
+  | Ast.Call (ppath, es) ->
+      let tes = List.map (type_expr intf) es in
+      let typs = List.map (fun e -> e.expr_typ) tes in
+      let tpath, rettyp = Tyenv.lookup_ppath intf ppath in
+      assert_typ intf rettyp (Lambda (typs, ret_typ rettyp));
+      let expr_core : expr_core = Call (tpath, tes) in
+      { expr_core; expr_typ = ret_typ rettyp }
+  | Ast.Aref (ppath, es) ->
+      let tpath, array_typ = Tyenv.lookup_ppath intf ppath in
+      let tes = List.map (type_expr intf) es in
+      let expr_typ = check_aref_args intf array_typ tes in
+      let expr_core = Aref (tpath, tes) in
+      { expr_core; expr_typ }
+
+and type_decl intf decl =
+  match decl with
+  | Ast.Decl (typ, ppath, eopt) -> begin
+      let new_typ = type_typ intf typ in
+      let tpath, new_intf = Tyenv.insert_path intf (Pident.ident ppath) new_typ in
+      let eopt = Option.map (type_expr intf) eopt in
+      (new_intf, Decl (new_typ, tpath, eopt))
+    end
+  | Ast.If (e, ds, dsopt) ->
+      let _then = snd ++ type_decls intf ds in
+      let _else = match dsopt with
+        | None -> None
+        | Some ds -> Some (snd ++ type_decls intf ds)  in
+      (intf, If (type_expr intf e, _then, _else))
+  | Ast.Assign (ppath, e) ->
+      let tpath, typ = Tyenv.lookup_ppath intf ppath in
+      let e = type_expr intf e in
+      assert_typ intf typ e.expr_typ;
+      intf, Assign (tpath, e)
+  | Ast.Astore (ppath, es, e) ->
+      let tpath, typ = Tyenv.lookup_ppath intf ppath in
+      let es = List.map (type_expr intf) es in
+      List.iter (fun e -> assert_typ intf Int e.expr_typ) es;
+      let e = type_expr intf e in
+      assert_typ intf typ e.expr_typ;
+      intf, Astore (tpath, es, e)
+  | Ast.For (ppath, e1, dir, e2, eopt, decls) ->
+      let tpath, new_intf = Tyenv.insert_path intf (Pident.ident ppath) Int in
+      let e1 = type_expr intf e1 in
+      let e2 = type_expr intf e2 in
+      let eopt = Option.map (type_expr intf) eopt in
+      let _, decls = type_decls new_intf decls in
+      intf, For (tpath, e1, dir, e2, eopt, decls)
+  | Ast.While (e, decls) ->
+      let e = type_expr intf e in
+      let _, decls = type_decls intf decls in
+      intf, While (e, decls)
+  | Ast.Call (ppath, es) ->
+      let tpath, typ = Tyenv.lookup_ppath intf ppath in
+      let es = List.map (type_expr intf) es in
+      begin match typ with
+      | Lambda (typs, ret) ->
+          List.iter2 (fun e t -> assert_typ intf e.expr_typ t) es typs;
+          intf, Call (tpath, es, ret)
+      | _ -> failwith ((Pident.show_path ppath) ^ " is not function")
+      end
+  | Ast.Return e ->
+      let e = type_expr intf e in
+      intf, Return e
+
+and type_decls intf decls =
+  List.fold_left (fun (intf, l) d ->
+    let intf, newd = type_decl intf d in
+    intf, newd::l) (intf, []) decls
+  |> fun (intf, l) -> (intf, List.rev l)
+
+and type_typ intf typ =
   match typ with
   | Ast.Int -> Int
   | Ast.Real -> Real
@@ -74,29 +129,40 @@ and type_typ : Env.intf -> Ast.typ -> Typed_ast.typ = fun intf typ ->
   | Ast.Lambda (typs, ret) ->
       Lambda (List.map (type_typ intf) typs, type_typ intf ret)
 
-let rec check_args (intf: Env.intf) args =
+let rec check_args (intf: Tyenv.intf) args =
   let a, b = List.span (function (s, typ) -> match typ with
       | Ast.Int | Ast.Real | Ast.Void | Ast.Lambda _ -> true | _ -> false) args in
   let new_intf = List.fold_left (fun intf (s, typ) ->
-      Env.insert_path intf s (type_typ intf typ)) intf (a @ b) in
+      Tyenv.insert_path intf s (type_typ intf typ) |> snd) intf (a @ b) in
   let args = List.map (fun (ident, _) ->
-      Env.lookup_ppath new_intf ++ Pident.Pident ident) (a @ b) in
+      Tyenv.lookup_ppath new_intf ++ Pident.Pident ident) (a @ b) in
   args, new_intf
 
 let type_top_decl intf = function
   | Ast.Fundef (typ, ppath, args, decls) ->
       let targs, new_intf = check_args intf args in
-      let new_intf = insert_path new_intf
-          (Pident.ident ppath) (type_typ new_intf ++ make_lambda typ args) in
-      let fpath, rettyp = Env.lookup_ppath new_intf ppath in
+      let rettyp = type_typ intf (make_lambda typ args) in
+      let tpath, new_intf = insert_path new_intf
+          (Pident.ident ppath) rettyp in
       let _, decls = List.fold_left (fun (intf, decls) decl ->
           let new_intf, d = type_decl intf decl in
           (new_intf, d::decls)) (new_intf, []) decls in
-      (new_intf, Fundef (rettyp, fpath, targs, decls))
-  | _ -> assert false           (* fix me *)
+      (new_intf, Fundef (rettyp, tpath, targs, List.rev decls))
+  | Ast.Global_var (typ, ppath, eopt) ->
+      let typ = type_typ intf typ in
+      let tpath, new_intf = Tyenv.insert_path intf (Pident.ident ppath) typ in
+      let eopt = match eopt with None -> None
+                               | Some e -> Some (type_expr intf e) in
+      (new_intf, Global_var (typ, tpath, eopt))
+  | Ast.Prim (typ, ppath, s) ->
+      let typ = type_typ intf typ in
+      let tpath, new_intf = Tyenv.insert_path intf (Pident.ident ppath) typ in
+      (* primitiveを探す処理を入れる *)
+      (new_intf, Prim (typ, tpath, s))
 
 let implementation mod_name t =
-  let intf = Env.create_intf mod_name in
-  List.fold_left (fun (intf, decls) d ->
+  let intf = Tyenv.create_intf mod_name in
+  let intf, decls = List.fold_left (fun (intf, decls) d ->
     let new_intf, d = type_top_decl intf d in
-    (new_intf, d::decls)) (intf, []) t
+    (new_intf, d::decls)) (intf, []) t in
+  (intf, List.rev decls)

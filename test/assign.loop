@@ -1,5 +1,6 @@
 int f (real a)
 {
-  int a;
-  a = 123;
+  int b = 13;
+  b = 123;
+  a = 3.14;
 }

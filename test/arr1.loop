@@ -1,4 +1,4 @@
-int[A.a] arr;
+int[100] arr;
 
 int main()
 {
