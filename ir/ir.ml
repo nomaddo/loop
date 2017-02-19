@@ -31,7 +31,7 @@ type instr =
   | Bge   of operand * operand * basic_block
   | Bgt   of operand * operand * basic_block
   | Beq   of operand * operand * basic_block
-  | Bnq   of operand * operand * basic_block
+  | Bne   of operand * operand * basic_block
   | Mle   of operand * operand * operand * operand
   | Mlt   of operand * operand * operand * operand
   | Mge   of operand * operand * operand * operand

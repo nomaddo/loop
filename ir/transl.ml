@@ -27,7 +27,7 @@ let rec transl_expr (intf: Tyenv.intf) (op: Ir.operand) e =
       let operand =
         {opcore = Ir.Rconst str; typ = transl_typ e.expr_typ} in
       [Ir.Mov (op, operand)]
-  | Call (Tident ident, es) ->
+  | Call (Tident.Tident ident, es) ->
       begin match Tyenv.find_prim ident with
       | None ->
           let ops = List.map (fun e -> Ir.new_tv (transl_typ e.expr_typ)) es in
@@ -47,17 +47,17 @@ and transl_bin intf es op typ f =
 
 and transl_prim intf es op typ s =
   match s with
-  | "plus" | "fplus" -> transl_bin intf es op typ add
+  | "plus" | "fplus"  -> transl_bin intf es op typ add
   | "minus"| "fminus" -> transl_bin intf es op typ sub
-  | "mul" | "fmul" -> transl_bin intf es op typ mul
-  | "div" | "fdiv" -> transl_bin intf es op typ div
-  | "gt" | "fgt" -> transl_bin intf es op typ mge
-  | "lt" | "flt" ->  transl_bin intf es op typ mlt
-  | "ge" -> transl_bin intf es op typ mge
-  | "le" -> transl_bin intf es op typ mle
-  | "eq" -> transl_bin intf es op typ meq
-  | "ne" -> transl_bin intf es op typ mne
-  | "rtoi" | "itor" -> transl_bin intf es op typ conv
+  | "mul"  | "fmul"   -> transl_bin intf es op typ mul
+  | "div"  | "fdiv"   -> transl_bin intf es op typ div
+  | "gt"   | "fgt"    -> transl_bin intf es op typ mge
+  | "lt"   | "flt"    -> transl_bin intf es op typ mlt
+  | "ge"   | "fge"    -> transl_bin intf es op typ mge
+  | "le"   | "fle"    -> transl_bin intf es op typ mle
+  | "eq"   | "feq"    -> transl_bin intf es op typ meq
+  | "ne"   | "fne"    -> transl_bin intf es op typ mne
+  | "rtoi" | "itor"   -> transl_bin intf es op typ conv
   | _ -> raise Not_found
 
 let rec transl_decls (intf: Tyenv.intf) bc decls =
@@ -73,28 +73,41 @@ let rec transl_decls (intf: Tyenv.intf) bc decls =
           bc.instrs <- bc.instrs @ instrs;
           transl_decls intf bc tl
       | If (cond, d, dopt) -> begin
-          match cond.expr_core with
-          | Call  (Tident.Tident id, es) when Tyenv.find_prim id != None ->
-              not_implemented_yet ()
-          | _ ->
-              let op = new_var I4 in
-              let instrs = transl_expr intf op cond in
-              let then_bc = new_bc () in
-              let next_bc = new_bc () in
-              bc.instrs <- bc.instrs @ instrs @ [Ir.Beq (op, true_op, then_bc)];
-              let last_then = transl_decls intf then_bc d in
-              ignore (transl_decls intf next_bc tl);
-              concat_bc last_then next_bc;
-              concat_bc bc next_bc;
-              begin match dopt with
-              | None -> next_bc
-              | Some d' ->
-                  let else_bc = new_bc () in
-                  let last_else = transl_decls intf else_bc d' in
-                  concat_bc bc else_bc;
-                  concat_bc last_else next_bc;
-                  next_bc
-              end
+          let op = new_var I4 in
+          let then_bc = new_bc () in
+          let next_bc = new_bc () in
+          let instrs, binstr =
+            try match cond.expr_core with
+              | Call  (Tident.Tident id, es) ->
+                assert (Tyenv.find_prim id != None);
+                let [x; y] as ops = List.map (fun e -> new_tv (transl_typ e.expr_typ)) es in
+                let instrs = List.map2 (transl_expr intf) ops es |> List.flatten in
+                let s = Tyenv.find_prim id |> Option.get in
+                instrs, begin match s with
+                  | "gt" | "fgt" -> [Ir.Bgt (x, y, then_bc)]
+                  | "ge" | "fge" -> [Ir.Bge (x, y, then_bc)]
+                  | "lt" | "flt" -> [Ir.Blt (x, y, then_bc)]
+                  | "le" | "fle" -> [Ir.Bgt (x, y, then_bc)]
+                  | "eq" | "feq" -> [Ir.Beq (x, y, then_bc)]
+                  | "ne" | "fne" -> [Ir.Bne (x, y, then_bc)]
+                  | _ -> assert false
+                end
+              | _ -> assert false
+            with _ -> transl_expr intf op cond, [Ir.Beq (op, true_op, then_bc)] in
+          bc.instrs <- bc.instrs @ instrs @ binstr;
+          let last_then = transl_decls intf then_bc d in
+          ignore (transl_decls intf next_bc tl);
+          concat_bc last_then next_bc;
+          concat_bc bc next_bc;
+          begin match dopt with
+            | None -> next_bc
+            | Some d' ->
+                let else_bc = new_bc () in
+                let last_else = transl_decls intf else_bc d' in
+                concat_bc bc else_bc;
+                concat_bc last_else next_bc;
+                next_bc
+          end
         end
       | Assign (tpath, e)                     ->
           let op = { opcore = Ir.Var tpath; typ = transl_typ e.expr_typ } in
@@ -115,7 +128,7 @@ let transl_args intf args =
 let transl_fun mod_name intf = function
   | Typed_ast.Fundef (typ, tpath, args, decls) ->
       let entry = new_bc () in
-      transl_decls intf entry decls;
+      ignore (transl_decls intf entry decls);
       { Ir.label_name = Tident.make_label mod_name tpath;
         args = transl_args intf args;
         entry; }
