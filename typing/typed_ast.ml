@@ -20,14 +20,14 @@ and typ =
 [@@deriving show]
 
 type  decl =
-  | Decl   of  typ * Tident.path *  expr option
-  | If     of  expr *  decl list *  decl list option
+  | Decl   of typ * Tident.path *  expr option
+  | If     of expr *  decl list *  decl list option
   | Assign of Tident.path *  expr
   | Astore of Tident.path *  expr list *  expr
   | For    of Tident.path *  expr * direction *  expr *  expr option *  decl list
-  | While  of  expr *  decl list
+  | While  of expr *  decl list
   | Call   of Tident.path *  expr list * typ
-  | Return of  expr
+  | Return of expr
 [@@deriving show]
 
 type  top_decl =

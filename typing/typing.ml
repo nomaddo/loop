@@ -174,8 +174,8 @@ let type_top_decl intf = function
 let implementation mod_name t =
   let intf = Tyenv.create_intf mod_name in
   let intf =
-    List.fold_left (fun intf (pident, typ) ->
-      insert_path intf pident (type_typ intf typ)
+    List.fold_left (fun intf (pident, typ, _) ->
+      insert_tident intf pident typ
       |> snd ) intf Tyenv.primitives in
   let intf, decls = List.fold_left (fun (intf, decls) d ->
     let new_intf, d = type_top_decl intf d in

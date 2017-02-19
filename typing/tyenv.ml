@@ -94,6 +94,13 @@ let insert_path intf s ty =
     tpath, { intf with intf_path  = Map.add s (tpath, ty) intf.intf_path ;
                        intf_path_ = Map.add (Tident.ident tpath) ty intf.intf_path_ }
 
+let insert_tident intf (tident: Tident.ident) ty =
+  let tpath = Tident.Tident tident in
+  let s = tident.Tident.name in
+    tpath, { intf with intf_path  = Map.add s (tpath, ty) intf.intf_path ;
+                       intf_path_ = Map.add (Tident.ident tpath) ty intf.intf_path_ }
+
+
 let insert_path_for_args intf l =
   List.fold_left (fun intf (s, ty) -> insert_path intf s ty |> snd) intf l
 
@@ -103,28 +110,34 @@ let mkhash l =
   h
 
 let primitives =
-  let open Ast in
+  let open Typed_ast in
   [
-    "+",  Lambda ([Int; Int], Int);
-    "-",  Lambda ([Int; Int], Int);
-    "*",  Lambda ([Int; Int], Int);
-    "/",  Lambda ([Int; Int], Int);
-    "+.",  Lambda ([Real; Real], Real);
-    "-.",  Lambda ([Real; Real], Real);
-    "*.",  Lambda ([Real; Real], Real);
-    "/.",  Lambda ([Real; Real], Real);
-    "<",  Lambda ([Int; Int], Int);
-    ">",  Lambda ([Int; Int], Int);
-    "<=", Lambda ([Int; Int], Int);
-    ">=", Lambda ([Int; Int], Int);
-    "==", Lambda ([Int; Int], Int);
-    "!=", Lambda ([Int; Int], Int);
-    "<.",  Lambda ([Real; Real], Int);
-    ">.",  Lambda ([Real; Real], Int);
-    "<=.", Lambda ([Real; Real], Int);
-    ">=.", Lambda ([Real; Real], Int);
-    "==.", Lambda ([Real; Real], Int);
-    "!=.", Lambda ([Real; Real], Int);
-    "rtoi", Lambda ([Real], Int);
-    "itor", Lambda ([Int], Real);
+    "+",  Lambda ([Int; Int], Int), "plus";
+    "-",  Lambda ([Int; Int], Int), "minus";
+    "*",  Lambda ([Int; Int], Int), "mul";
+    "/",  Lambda ([Int; Int], Int), "div";
+    "+.",  Lambda ([Real; Real], Real), "fplus";
+    "-.",  Lambda ([Real; Real], Real), "fminus";
+    "*.",  Lambda ([Real; Real], Real), "fmul";
+    "/.",  Lambda ([Real; Real], Real), "fdiv";
+    "<",  Lambda ([Int; Int], Int), "gt";
+    ">",  Lambda ([Int; Int], Int), "lt";
+    "<=", Lambda ([Int; Int], Int), "ge";
+    ">=", Lambda ([Int; Int], Int), "le";
+    "==", Lambda ([Int; Int], Int), "eq";
+    "!=", Lambda ([Int; Int], Int), "ne";
+    "<.",  Lambda ([Real; Real], Int), "fgt";
+    ">.",  Lambda ([Real; Real], Int), "flt";
+    "<=.", Lambda ([Real; Real], Int), "fge";
+    ">=.", Lambda ([Real; Real], Int), "fle";
+    "==.", Lambda ([Real; Real], Int), "feq";
+    "!=.", Lambda ([Real; Real], Int), "fne";
+    "rtoi", Lambda ([Real], Int), "rtoi";
+    "itor", Lambda ([Int], Real), "itor";
   ]
+  |> List.map (fun (s, typ ,name) -> (Tident.make_ident s, typ, name))
+
+let find_prim tident =
+  try List.find (function (id, _, s) -> tident = id) primitives
+      |> function (_, _, s) -> Some s
+  with Not_found -> None

@@ -6,24 +6,23 @@
 ./etc/etc.cmx :
 ./etc/flags.cmo :
 ./etc/flags.cmx :
-./parsing/ast.cmo : ./parsing/ast.cmi
-./parsing/ast.cmx : ./parsing/ast.cmi
-./parsing/ast.cmi :
+./ir/ir.cmo :
+./ir/ir.cmx :
+./ir/transl.cmo :
+./ir/transl.cmx :
+./parsing/ast.cmo :
+./parsing/ast.cmx :
 ./parsing/parser.cmi :
-./parsing/pident.cmo : ./parsing/pident.cmi
-./parsing/pident.cmx : ./parsing/pident.cmi
-./parsing/pident.cmi :
-./parsing/types.cmo :
-./parsing/types.cmx :
+./parsing/pident.cmo :
+./parsing/pident.cmx :
 ./typing/btypes.cmo :
 ./typing/btypes.cmx :
 ./typing/intf_mod.cmo :
 ./typing/intf_mod.cmx :
 ./typing/tident.cmo :
 ./typing/tident.cmx :
-./typing/tyenv.cmo : ./typing/tyenv.cmi
-./typing/tyenv.cmx : ./typing/tyenv.cmi
-./typing/tyenv.cmi :
+./typing/tyenv.cmo :
+./typing/tyenv.cmx :
 ./typing/typed_ast.cmo :
 ./typing/typed_ast.cmx :
 ./typing/typing.cmo :
