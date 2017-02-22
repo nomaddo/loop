@@ -11,13 +11,13 @@ let type_fail expected typ =
     (Typed_ast.show_typ expected) (Typed_ast.show_typ typ);
   failwith "type_error"
 
-let rec assert_typ intf expected typ =
+let rec assert_typ expected typ =
   let open Typed_ast in
   match expected, typ with
   | Int, Int | Real, Real | Void, Void -> ()
   | Lambda (la, a), Lambda (lb, b) ->
-      List.iter2 (assert_typ intf) la lb;
-      assert_typ intf a b
+      List.iter2 assert_typ la lb;
+      assert_typ a b
   | Array _, Array _ -> not_implemented_yet ()
   | _ ->
       type_fail expected typ
@@ -29,7 +29,7 @@ and check_aref_args intf typ l =
       begin match l with
       | [] -> typ
       | hd :: tl ->
-          assert_typ intf Int hd.expr_typ;
+          assert_typ Int hd.expr_typ;
           check_aref_args intf typ tl
       end
   | _ ->
@@ -49,7 +49,7 @@ let rec type_expr intf e =
       let tes = List.map (type_expr intf) es in
       let typs = List.map (fun e -> e.expr_typ) tes in
       let tpath, rettyp = Tyenv.lookup_ppath intf ppath in
-      assert_typ intf rettyp (Lambda (typs, ret_typ rettyp));
+      assert_typ rettyp (Lambda (typs, ret_typ rettyp));
       let expr_core : expr_core = Call (tpath, tes) in
       { expr_core; expr_typ = ret_typ rettyp }
   | Ast.Aref (ppath, es) ->
@@ -76,20 +76,15 @@ and type_decl intf rettyp decl =
   | Ast.Assign (ppath, e) ->
       let tpath, typ = Tyenv.lookup_ppath intf ppath in
       let e = type_expr intf e in
-      assert_typ intf typ e.expr_typ;
+      assert_typ typ e.expr_typ;
       intf, Assign (tpath, e)
   | Ast.Astore (ppath, es, e) ->
       let tpath, typ = Tyenv.lookup_ppath intf ppath in
       let es = List.map (type_expr intf) es in
-      List.iter (fun e -> assert_typ intf Int e.expr_typ) es;
+      List.iter (fun e -> assert_typ Int e.expr_typ) es;
       let e = type_expr intf e in
-      begin match typ with
-      | Array (etyp, _) ->
-          assert_typ intf etyp e.expr_typ;
-          intf, Astore (tpath, es, e)
-      | _ ->
-          type_fail (Typed_ast.Array (e.expr_typ, dummy_const)) typ
-      end
+      assert_astore typ es;
+      intf, Astore (tpath, es, e)
   | Ast.For (ppath, e1, dir, e2, eopt, decls) ->
       let tpath, new_intf = Tyenv.insert_path intf (Pident.ident ppath) Int in
       let e1 = type_expr intf e1 in
@@ -106,14 +101,23 @@ and type_decl intf rettyp decl =
       let es = List.map (type_expr intf) es in
       begin match typ with
       | Lambda (typs, ret) ->
-          List.iter2 (fun e t -> assert_typ intf e.expr_typ t) es typs;
+          List.iter2 (fun e t -> assert_typ e.expr_typ t) es typs;
           intf, Call (tpath, es, ret)
       | _ -> failwith ((Pident.show_path ppath) ^ " is not function")
       end
   | Ast.Return e ->
       let e = type_expr intf e in
-      assert_typ intf rettyp e.expr_typ;
+      assert_typ rettyp e.expr_typ;
       intf, Return e
+
+(*  *)
+and assert_astore typ es =
+  match typ, es with
+  | Int, [] | Real, [] | Lambda _, [] -> ()
+  | Array (atyp, _), x::xs ->
+      assert_astore atyp xs
+  | Array (atyp, _), [] -> failwith "assert_astore: dimension mismatch"
+  | _ -> failwith "assert_astore: unexpected"
 
 and type_decls intf rettyp decls =
   List.fold_left (fun (intf, l) d ->
@@ -162,7 +166,7 @@ let type_top_decl intf = function
       let typ = type_typ intf typ in
       let tpath, new_intf = Tyenv.insert_path intf (Pident.ident ppath) typ in
       let eopt = Option.map (fun e -> let te = type_expr intf e in
-          assert_typ intf typ te.expr_typ; te
+          assert_typ typ te.expr_typ; te
         ) eopt in
       (new_intf, Global_var (typ, tpath, eopt))
   | Ast.Prim (typ, ppath, s) ->

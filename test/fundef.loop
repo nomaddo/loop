@@ -1,5 +1,10 @@
 int f (int a, real b)
 {
   int c;
-  if ( 1 ) { int e; } else { real d; }
+  int e;
+  real d;
+  if ( 1 ) { e = a; e = 12; e = 13; } else { d = 4.13; d = 3.14; }
+  d = 100000.0;
+
+  int[c][e] g;
 }

@@ -3,7 +3,7 @@ open Etc
 open Ir
 open Typed_ast
 
-let array_tbl: (Tident.path, Typed_ast.typ) Hashtbl.t = Hashtbl.create 10
+let symbol_tbl: (Tident.path, Typed_ast.typ) Hashtbl.t = Hashtbl.create 10
 
 let transl_typ typ =
   match typ with
@@ -17,15 +17,15 @@ let rec transl_expr (intf: Tyenv.intf) (op: Ir.operand) e =
   match e.Typed_ast.expr_core with
   | Typed_ast.Var tpath ->
       let operand =
-        {opcore = Ir.Var tpath; typ = transl_typ e.expr_typ} in
+        new_operand (Ir.Var tpath) (transl_typ e.expr_typ) in
       [Ir.Mov (op, operand)]
   | Iconst int ->
       let operand =
-        {opcore = Ir.Iconst int; typ = transl_typ e.expr_typ} in
+        new_operand (Ir.Iconst int) (transl_typ e.expr_typ) in
       [Ir.Mov (op, operand)]
   | Rconst str ->
       let operand =
-        {opcore = Ir.Rconst str; typ = transl_typ e.expr_typ} in
+        new_operand (Ir.Rconst str) (transl_typ e.expr_typ) in
       [Ir.Mov (op, operand)]
   | Call (Tident.Tident ident, es) ->
       begin match Tyenv.find_prim ident with
@@ -66,8 +66,10 @@ let rec transl_decls (intf: Tyenv.intf) bc decls =
   | h :: tl -> begin
       match h with
       | Typed_ast.Decl (typ, tpath, None) ->
+          Hashtbl.add symbol_tbl tpath typ;
           transl_decls intf bc tl
       | Decl (typ, tpath, Some e) ->
+          Hashtbl.add symbol_tbl tpath typ;
           let op = Ir.new_var (transl_typ e.expr_typ) in
           let instrs = transl_expr intf op e in
           bc.instrs <- bc.instrs @ instrs;
@@ -110,20 +112,56 @@ let rec transl_decls (intf: Tyenv.intf) bc decls =
           end
         end
       | Assign (tpath, e)                     ->
-          let op = { opcore = Ir.Var tpath; typ = transl_typ e.expr_typ } in
+          let op = new_operand (Ir.Var tpath) (transl_typ e.expr_typ) in
           let instrs = transl_expr intf op e in
           bc.instrs <- instrs @ bc.instrs;
           transl_decls intf bc tl
-      | Astore (tpath, es, e)                 -> not_implemented_yet ()
+      | Astore (tpath, es, e)                 ->
+          let ops = List.map (fun e -> new_tv ++ transl_typ e.expr_typ) es in
+          let instrs1 =
+            fold_rev2 transl_expr intf ops es |> snd |> List.flatten in
+          let atyp = Hashtbl.find symbol_tbl tpath in
+          let retop = new_tv I4 in
+          let instrs2 = transl_ashape intf atyp retop ops in
+          bc.instrs <- bc.instrs @ instrs1 @
+              instrs2 @ [Add (retop, retop, new_operand (Var tpath) I4 )] ;
+          transl_decls intf bc tl
       | For    (tpath, e1, dir, e2, eopt, ds) -> not_implemented_yet ()
       | While  (e, ds)                        -> not_implemented_yet ()
       | Call   (tpath, es, typ)               -> not_implemented_yet ()
       | Return e                              -> not_implemented_yet ()
     end
 
+and transl_ashape intf atyp retop ops =
+  let rec elist acc atyp =
+    match atyp with
+    | Array (atyp', e) ->
+        elist ((fun op -> transl_expr intf op e) :: acc) atyp'
+    | _ -> List.rev acc in
+  let rec calc_ops eop ops =
+    List.fold_left (fun l op -> Mul (eop, eop, op) :: l) [] ops
+    |> List.rev in
+  let rec calc_rec acc retop ops eops =
+    match eops with
+    | x :: [] -> Mov (retop, x) :: acc
+    | x :: tl -> calc_ops x ops @ calc_rec (Add (retop, retop, x) :: acc) retop (List.tl ops) tl
+    | [] -> failwith "calc_rec" in
+  let fs =  elist [] atyp in
+  let ashape_ops, instrs =
+    List.map (fun f -> let op = new_tv I4 in op, f op) fs
+    |> List.split |> fun (x, y) -> x, List.flatten y in
+  (* begin *)
+  (*   List.iter (Format.printf "%a " dump_operand) ashape_ops; *)
+  (*   Format.printf "@."; *)
+  (*   List.iter (Format.printf "%a " dump_operand) ops; *)
+  (*   Format.printf "@."; *)
+  (*   List.iter (Format.printf "%a@." dump_instr) instrs; *)
+  (* end; *)
+  instrs @ calc_rec [] retop (List.tl ashape_ops) ops
+
 let transl_args intf args =
   List.map (fun (tpath, typ) ->
-    {Ir.opcore = Ir.Var tpath; typ = transl_typ typ}) args
+    new_operand (Ir.Var tpath) (transl_typ typ)) args
 
 let transl_fun mod_name intf = function
   | Typed_ast.Fundef (typ, tpath, args, decls) ->
@@ -131,9 +169,11 @@ let transl_fun mod_name intf = function
       ignore (transl_decls intf entry decls);
       { Ir.label_name = Tident.make_label mod_name tpath;
         args = transl_args intf args;
-        entry; }
+        entry;
+        all_bc =  List.rev !Ir.all_bc }
   | _ -> not_implemented_yet ()
 
 let implementation mod_name intf tops =
-  { funcs = List.map (transl_fun intf mod_name) tops;
-    memories = [] }
+  Ir.all_bc := [];
+  let funcs = List.map (transl_fun intf mod_name) tops in
+  { funcs; memories = []; }

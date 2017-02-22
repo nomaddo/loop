@@ -7,7 +7,19 @@ let dump_tast tast =
   Format.printf "%s@." (Typed_ast.show tast)
 
 let dump_top top =
-  Format.printf "%s@." (Ir.show_toplevel top)
+  Format.printf "%a@." Ir.dump top
+
+let typ anonymous =
+  let mod_name =
+    Filename.basename anonymous
+    |> Filename.chop_extension in
+  let inc = open_in anonymous in
+  let lexbuf = Lexing.from_channel inc in
+  let ast = Parser.main Lexer.token lexbuf in
+  begin if !Flags.print_ast then dump_ast ast end;
+  let intf, tast = Typing.implementation mod_name ast in
+  begin if !Flags.print_tast then dump_tast tast end;
+  intf, tast
 
 let main anonymous =
   let mod_name =
