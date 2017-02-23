@@ -190,6 +190,7 @@ end
 
 module Bc = struct
   let all_bc = ref []
+  let clear_bc () = all_bc := []
 
   let new_bc ?(attrs=[]) loop =
     let bc = { instrs = []; next = None; succs = []; loop;

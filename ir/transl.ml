@@ -81,6 +81,7 @@ let rec transl_decls parent bc decls =
   | [] -> bc
   | h :: tl -> begin
       match h with
+      (* 配列が宣言された場合にメモリ確保に相当する処理をどう表すのか *)
       | Typed_ast.Decl (typ, tpath, None) ->
           Hashtbl.add symbol_tbl tpath typ;
           transl_decls parent bc tl
@@ -231,10 +232,12 @@ let transl_fun mod_name  = function
       let total = Loop_info.total_loop () in
       let entry = Bc.new_bc total in
       ignore (transl_decls total entry decls);
-      { label_name = Tident.make_label mod_name tpath;
+      let func = { label_name = Tident.make_label mod_name tpath;
         args = transl_args args;
         entry; loops = [];
-        all_bc =  List.rev !Bc.all_bc }
+                   all_bc =  List.rev !Bc.all_bc } in
+      Bc.clear_bc ();
+      func
   | _ -> not_implemented_yet ()
 
 let implementation mod_name intf tops =

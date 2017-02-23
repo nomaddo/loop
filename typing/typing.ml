@@ -161,7 +161,8 @@ let type_top_decl intf = function
       let _, decls = List.fold_left (fun (intf, decls) decl ->
           let new_intf, d = type_decl intf rettyp decl in
           (new_intf, d::decls)) (new_intf, []) decls in
-      (new_intf, Fundef (funtyp, tpath, targs, List.rev decls))
+      let _, next_intf = insert_path intf (Pident.ident ppath) funtyp in
+      (next_intf, Fundef (funtyp, tpath, targs, List.rev decls))
   | Ast.Global_var (typ, ppath, eopt) ->
       let typ = type_typ intf typ in
       let tpath, new_intf = Tyenv.insert_path intf (Pident.ident ppath) typ in
