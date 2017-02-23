@@ -7,7 +7,7 @@ let dump_tast tast =
   Format.printf "%s@." (Typed_ast.show tast)
 
 let dump_top top =
-  Format.printf "%a@." Ir.dump top
+  Format.printf "%a@." Dump.dump top
 
 let typ anonymous =
   let mod_name =

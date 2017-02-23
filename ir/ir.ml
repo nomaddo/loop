@@ -104,6 +104,7 @@ and toplevel = {
 }
 [@@deriving show]
 
+module Dump = struct
 let rec dump fmt {funcs; memories} =
   List.iter (dump_func fmt) funcs
 
@@ -172,6 +173,7 @@ and dump_instr fmt instr =
         (fun fmt l -> List.iter (d fmt) l) ops
   | Ret x -> Format.fprintf fmt "ret %a@." d x
   | Alloc (x, y) -> Format.fprintf fmt "alloc %a, %a@." d x d y
+end
 
 let true_op = new_operand (Iconst 0) I4
 let false_op = new_operand (Iconst 1) I4

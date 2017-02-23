@@ -12,7 +12,7 @@ INTF    = \
 ETC     = ${addprefix etc/, etc.cmo flags.cmo}
 PARSING = ${addprefix parsing/, pident.cmo ast.cmo parser.cmo lexer.cmo}
 TYPING  = ${addprefix typing/, btypes.cmo tident.cmo intf_mod.cmo typed_ast.cmo tyenv.cmo typing.cmo}
-IR      = ${addprefix ir/, typ.cmo operand.cmo ir.cmo transl.cmo}
+IR      = ${addprefix ir/, typ.cmo operand.cmo ir.cmo dump.cmo transl.cmo}
 DRIVER  = ${addprefix driver/, options.cmo main.cmo}
 
 OBJS= ${ETC} ${PARSING} ${TYPING} ${IR} ${DRIVER}
