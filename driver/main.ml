@@ -32,7 +32,7 @@ let main anonymous =
     begin if !Flags.print_ast then dump_ast ast end;
     let intf, tast = Typing.implementation mod_name ast in
     begin if !Flags.print_tast then dump_tast tast end;
-    let top = Transl.implementation intf mod_name tast in
+    let top = Transl.implementation mod_name intf tast in
     begin if !Flags.print_top then dump_top top end;
     close_in inc
   with

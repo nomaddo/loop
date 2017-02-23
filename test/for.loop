@@ -1,18 +1,10 @@
-int f ()
+int f (int x)
 {
-  for a = 1 to 2
-  {
-    return 3;
-  }
-
-  for a = 1 downto 2
+  int y = x < x;
+  for a = 1 downto 0 - 2
   {
     int b = a * a;
     b = b + b;
-  }
-
-  for a = 1 downto 2 by 1
-  {
   }
 
 }

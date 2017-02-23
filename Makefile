@@ -6,11 +6,13 @@ INCLUDE=-I etc -I parsing -I typing -I ir -I driver
 LIB=-package ppx_deriving.show,batteries
 LLIB=
 
-INTF    = ${addprefix parsing/, parser.cmi}
+INTF    = \
+	${addprefix parsing/, parser.cmi}                                    \
+
 ETC     = ${addprefix etc/, etc.cmo flags.cmo}
 PARSING = ${addprefix parsing/, pident.cmo ast.cmo parser.cmo lexer.cmo}
 TYPING  = ${addprefix typing/, btypes.cmo tident.cmo intf_mod.cmo typed_ast.cmo tyenv.cmo typing.cmo}
-IR      = ${addprefix ir/, ir.cmo transl.cmo}
+IR      = ${addprefix ir/, typ.cmo operand.cmo ir.cmo transl.cmo}
 DRIVER  = ${addprefix driver/, options.cmo main.cmo}
 
 OBJS= ${ETC} ${PARSING} ${TYPING} ${IR} ${DRIVER}
