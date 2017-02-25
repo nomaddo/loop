@@ -6,7 +6,8 @@ let rec dump fmt {funcs; memories} =
   List.iter (dump_func fmt) funcs
 
 and dump_func fmt {label_name; args; entry; all_bc} =
-  Format.fprintf fmt "%s: %a@.%a@." label_name dump_args args dump_bcs all_bc
+  Format.fprintf fmt "%s: %a start block_%d@.%a@."
+    label_name dump_args args  entry.id dump_bcs all_bc
 
 and dump_args fmt l =
   Format.fprintf fmt "{";
