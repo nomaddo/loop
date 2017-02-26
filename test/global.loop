@@ -1,2 +1,7 @@
 int a = 123;
 int b;
+
+void sub (int i)
+{
+  a = i;
+}

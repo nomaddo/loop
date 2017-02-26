@@ -3,42 +3,45 @@ open Typ
 open Operand
 open Etc
 
-type basic_block = {
+type 'a basic_block = {
   id: int;
-  mutable instrs : instr list;
+  mutable instrs : 'a instr list;
 
   (* 次のbasic_block *)
-  mutable next   : basic_block option;
+  mutable next   : 'a basic_block option;
 
   (* ブランチなど次に行きうるbasic_block *)
-  mutable succs  : basic_block list;
+  mutable succs  : 'a basic_block list;
 
   (* 前になりうるbasic_block *)
-  mutable preds  : basic_block list;
+  mutable preds  : 'a basic_block list;
 
   mutable attrs  : basic_block_attr list;
 
-  mutable loop : loop_info;
+  mutable loop : 'a loop_info;
 }
 
 and basic_block_attr =
   | Line of int
 
-and instr_core =
+and index_mode =
+  | Base_offset of { base: operand; offset: operand }
+
+and ila =
   | Add   of operand * operand * operand
   | Sub   of operand * operand * operand
   | Mul   of operand * operand * operand
   | Div   of operand * operand * operand
-  | Str   of operand * operand
-  | Ld    of operand * operand
+  | Str   of index_mode * operand
+  | Ld    of operand * index_mode
   | Conv  of operand * operand
   | Mov   of operand * operand
-  | Ble   of operand * operand * basic_block
-  | Blt   of operand * operand * basic_block
-  | Bge   of operand * operand * basic_block
-  | Bgt   of operand * operand * basic_block
-  | Beq   of operand * operand * basic_block
-  | Bne   of operand * operand * basic_block
+  | Ble   of operand * operand * ila basic_block
+  | Blt   of operand * operand * ila basic_block
+  | Bge   of operand * operand * ila basic_block
+  | Bgt   of operand * operand * ila basic_block
+  | Beq   of operand * operand * ila basic_block
+  | Bne   of operand * operand * ila basic_block
   | Mle   of operand * operand * operand * operand
   | Mlt   of operand * operand * operand * operand
   | Mge   of operand * operand * operand * operand
@@ -50,37 +53,37 @@ and instr_core =
   | Ret   of operand
   | Alloc of operand * operand
 
-and instr = {
-  mutable instr_core : instr_core;
-  mutable belongs    : basic_block;
+and 'a instr = {
+  mutable instr_core : 'a;
+  mutable belongs    : 'a basic_block;
 }
 
-and loop_info = {
+and 'a loop_info = {
   id: int;
 
   (* 誘導変数のリスト、terminateで必ず更新される *)
   mutable ind_vars   : operand list;
 
   (* 回避分岐を行うブロック *)
-  mutable pre_initial: basic_block option;
+  mutable pre_initial: 'a basic_block option;
 
   (* 変数の初期化をするブロック *)
-  mutable initial    : basic_block option;
+  mutable initial    : 'a basic_block option;
 
   (* 実際の処理を始めるブロック *)
-  mutable entrance   : basic_block;
+  mutable entrance   : 'a basic_block;
 
   (* 終了条件を行うブロック、ここからentranceへ分岐が出る *)
-  mutable terminate  : basic_block;
+  mutable terminate  : 'a basic_block;
 
   (* ループ終了後必ずここを通る *)
-  mutable epilogue   : basic_block;
+  mutable epilogue   : 'a basic_block;
 
   (* 親のループ *)
-  mutable parent     : loop_info option;
+  mutable parent     : 'a loop_info option;
 
   (* 子のループ *)
-  mutable child      : loop_info list;
+  mutable child      : 'a loop_info list;
 
   mutable attrs      : loop_info_attr list
 }
@@ -90,96 +93,30 @@ and loop_info_attr =
   | For
   | Total
 
-and func = {
+and 'a func = {
   mutable label_name: string;
   mutable args: operand list;
-  mutable entry: basic_block;
-  mutable all_bc: basic_block list;
-  mutable loops: loop_info list;
+  mutable entry: 'a basic_block;
+  mutable all_bc: 'a basic_block list;
+  mutable loops: 'a loop_info list;
 }
 
-and toplevel = {
-  mutable funcs: func list;
-  mutable memories: string list;
+and 'a toplevel = {
+  mutable funcs: 'a func list;
+  mutable memories: memory list;
+}
+
+and memory = {
+  name  : Tident.path;
+  shape : int
 }
 [@@deriving show]
-
-module Dump = struct
-let rec dump fmt {funcs; memories} =
-  List.iter (dump_func fmt) funcs
-
-and dump_func fmt {label_name; args; entry; all_bc} =
-  Format.fprintf fmt "%s: %a@.%a@." label_name dump_args args dump_bcs all_bc
-
-and dump_args fmt l =
-  Format.fprintf fmt "{";
-  List.iter (Format.fprintf fmt "%a," dump_operand) l;
-  Format.fprintf fmt "}"
-
-and dump_operand fmt op =
-  match op.opcore with
-  | Iconst i -> Format.fprintf fmt "%d" i
-  | Rconst s -> Format.fprintf fmt "%s" s
-  | Memory i -> Format.fprintf fmt "M_%d" i
-  | Var    tpath -> Format.fprintf fmt "$%a(%a)"
-        dump_tpath tpath dump_typ op.typ
-  | Tv     i -> Format.fprintf fmt "@%d(%a)" i dump_typ op.typ
-
-and dump_tpath fmt = function
-  | Tident.Tident id -> Format.fprintf fmt "%s(%d)" id.name id.id
-  | Tident.Tpath (id, path) ->
-      Format.fprintf fmt "%s."id.name;
-      dump_tpath fmt path
-
-and dump_typ fmt = function
-  | I4 -> Format.fprintf fmt "I4"
-  | R4 -> Format.fprintf fmt "R4"
-
-and dump_bcs fmt bcs =
-  List.iter (dump_bc fmt) bcs
-
-and dump_bc fmt bc =
-  Format.fprintf fmt "--- block (%d)@." bc.id;
-  List.iter (dump_instr fmt) bc.instrs;
-  Format.fprintf fmt "--- next block (%s)@.@."
-    (match bc.next with None -> "none" | Some b -> string_of_int b.id)
-
-and dump_instr fmt instr =
-  let d = dump_operand in
-  match instr.instr_core with
-  | Add (x, y, z) -> Format.fprintf fmt "add %a, %a, %a@." d x d y d z
-  | Sub (x, y, z) -> Format.fprintf fmt "sub %a, %a, %a@." d x d y d z
-  | Mul (x, y, z) -> Format.fprintf fmt "mul %a, %a, %a@." d x d y d z
-  | Div (x, y, z) -> Format.fprintf fmt "div %a, %a, %a@." d x d y d z
-  | Str (x, y) -> Format.fprintf fmt "store %a, %a@." d x d y
-  | Ld (x, y) -> Format.fprintf fmt "load %a, %a@." d x d y
-  | Conv (x, y) -> Format.fprintf fmt "conv %a, %a@." d x d y
-  | Mov (x, y) -> Format.fprintf fmt "mov %a, %a@." d x d y
-  | Ble (x, y, b) -> Format.fprintf fmt "ble %a, %a, {%d}@." d x d y b.id
-  | Blt (x, y, b) -> Format.fprintf fmt "blt %a, %a, {%d}@." d x d y b.id
-  | Bge (x, y, b) -> Format.fprintf fmt "bge %a, %a, {%d}@." d x d y b.id
-  | Bgt (x, y, b) -> Format.fprintf fmt "bgt %a, %a, {%d}@." d x d y b.id
-  | Beq (x, y, b) -> Format.fprintf fmt "beq %a, %a, {%d}@." d x d y b.id
-  | Bne (x, y, b) -> Format.fprintf fmt "bne %a, %a, {%d}@." d x d y b.id
-  | Mle (x, y, z, a) -> Format.fprintf fmt "mle %a, %a, %a, %a@." d x d y d z d z
-  | Mlt (x, y, z, a) -> Format.fprintf fmt "mlt %a, %a, %a, %a@." d x d y d z d z
-  | Mge (x, y, z, a) -> Format.fprintf fmt "mge %a, %a, %a, %a@." d x d y d z d z
-  | Mgt (x, y, z, a) -> Format.fprintf fmt "mgt %a, %a, %a, %a@." d x d y d z d z
-  | Meq (x, y, z, a) -> Format.fprintf fmt "meq %a, %a, %a, %a@." d x d y d z d z
-  | Mne (x, y, z, a) -> Format.fprintf fmt "mne %a, %a, %a, %a@." d x d y d z d z
-  | Callm (x, tpath, ops) -> Format.fprintf fmt "callm %a %a, %a@." d x
-        dump_tpath tpath  (fun fmt l -> List.iter (d fmt) l) ops
-  | Call (tpath, ops) -> Format.fprintf fmt "call %a, %a@." dump_tpath tpath
-        (fun fmt l -> List.iter (d fmt) l) ops
-  | Ret x -> Format.fprintf fmt "ret %a@." d x
-  | Alloc (x, y) -> Format.fprintf fmt "alloc %a, %a@." d x d y
-end
 
 let true_op = new_operand (Iconst 0) I4
 let false_op = new_operand (Iconst 1) I4
 
 module Instr = struct
-  type t = instr
+  type t = ila instr
 
   let new_instr core bc =
     { instr_core = core; belongs = bc }
@@ -189,7 +126,7 @@ module Instr = struct
 end
 
 module Bc = struct
-  let all_bc = ref []
+  let all_bc : ila basic_block list ref = ref []
   let clear_bc () = all_bc := []
 
   let new_bc ?(attrs=[]) loop =

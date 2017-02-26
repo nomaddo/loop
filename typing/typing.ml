@@ -158,14 +158,14 @@ let type_top_decl intf = function
       let funtyp = Lambda (argtyps, rettyp) in
       let tpath, new_intf = insert_path new_intf
           (Pident.ident ppath) funtyp in
-      let _, decls = List.fold_left (fun (intf, decls) decl ->
+      let new_intf, decls = List.fold_left (fun (intf, decls) decl ->
           let new_intf, d = type_decl intf rettyp decl in
           (new_intf, d::decls)) (new_intf, []) decls in
-      let _, next_intf = insert_path intf (Pident.ident ppath) funtyp in
-      (next_intf, Fundef (funtyp, tpath, targs, List.rev decls))
+      let new_intf = { new_intf with intf_path = Map.empty } in
+      (new_intf, Fundef (funtyp, tpath, targs, List.rev decls))
   | Ast.Global_var (typ, ppath, eopt) ->
       let typ = type_typ intf typ in
-      let tpath, new_intf = Tyenv.insert_path intf (Pident.ident ppath) typ in
+      let tpath, new_intf = Tyenv.insert_path ~top:true intf (Pident.ident ppath) typ in
       let eopt = Option.map (fun e -> let te = type_expr intf e in
           assert_typ typ te.expr_typ; te
         ) eopt in

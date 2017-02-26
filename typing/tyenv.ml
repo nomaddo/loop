@@ -5,7 +5,7 @@ type intf = { intf_name : Tident.path;
               intf_mod  : (Pident.ident, Tident.path * intf) Map.t;
               intf_mod_ : (Tident.ident, intf) Map.t;
               intf_path : (Pident.ident, Tident.path * Typed_ast.typ) Map.t ;
-              intf_path_: (Tident.ident, Typed_ast.typ) Map.t
+              intf_path_: (Tident.ident, Typed_ast.typ * bool) Map.t
             }
 
 let show_intf intf =
@@ -27,7 +27,7 @@ let rec recreate_intf intf =
     intf_mod_  = Map.fold (fun (ppath, typ) intf ->
                      Map.add ++ Tident.ident ppath ++ typ ++ intf) intf_mod Map.empty ;
     intf_path_ = Map.fold (fun (ppath, intf') intf ->
-                     Map.add ++ Tident.ident ppath ++ intf' ++ intf) intf_path Map.empty;
+        Map.add ++ Tident.ident ppath ++ (intf', false) ++ intf) intf_path Map.empty;
   }
 
 let read_mods () =
@@ -78,7 +78,7 @@ let rec mem_ppath intf ppath =
 
 let rec find_path intf tpath =
   match tpath with
-  | Tident.Tident id -> begin try Map.find id intf.intf_path_ with
+  | Tident.Tident id -> begin try Map.find id intf.intf_path_ |> fst with
       | exn ->
           Format.printf "find_path: %s not found@." ++ Tident.show_path tpath;
           raise exn
@@ -86,20 +86,29 @@ let rec find_path intf tpath =
   | Tident.Tpath (id, tpath) ->
       find_path (Map.find id intf.intf_mod_) tpath
 
-let insert_path intf s ty =
+let rec find_path_is_toplevel intf tpath =
+  match tpath with
+  | Tident.Tident id -> begin try Map.find id intf.intf_path_ |> snd with
+      | exn ->
+          Format.printf "find_path: %s not found@." ++ Tident.show_path tpath;
+          raise exn
+    end
+  | Tident.Tpath (id, tpath) ->
+      find_path_is_toplevel (Map.find id intf.intf_mod_) tpath
+
+let insert_path ?(top=false) intf s ty =
   if mem_ppath intf (Pident.Pident s) then
       failwith ("insert_path: same var name is introduced " ^ s)
   else
     let tpath = Tident.path s in
     tpath, { intf with intf_path  = Map.add s (tpath, ty) intf.intf_path ;
-                       intf_path_ = Map.add (Tident.ident tpath) ty intf.intf_path_ }
+                       intf_path_ = Map.add (Tident.ident tpath) (ty, top) intf.intf_path_ }
 
-let insert_tident intf (tident: Tident.ident) ty =
+let insert_tident ?(top=false) intf (tident: Tident.ident) ty =
   let tpath = Tident.Tident tident in
   let s = tident.Tident.name in
     tpath, { intf with intf_path  = Map.add s (tpath, ty) intf.intf_path ;
-                       intf_path_ = Map.add (Tident.ident tpath) ty intf.intf_path_ }
-
+                       intf_path_ = Map.add (Tident.ident tpath) (ty, top) intf.intf_path_ }
 
 let insert_path_for_args intf l =
   List.fold_left (fun intf (s, ty) -> insert_path intf s ty |> snd) intf l
@@ -112,28 +121,28 @@ let mkhash l =
 let primitives =
   let open Typed_ast in
   [
-    "+",  Lambda ([Int; Int], Int), "plus";
-    "-",  Lambda ([Int; Int], Int), "minus";
-    "*",  Lambda ([Int; Int], Int), "mul";
-    "/",  Lambda ([Int; Int], Int), "div";
-    "+.",  Lambda ([Real; Real], Real), "fplus";
-    "-.",  Lambda ([Real; Real], Real), "fminus";
-    "*.",  Lambda ([Real; Real], Real), "fmul";
-    "/.",  Lambda ([Real; Real], Real), "fdiv";
-    "<",  Lambda ([Int; Int], Int), "gt";
-    ">",  Lambda ([Int; Int], Int), "lt";
-    "<=", Lambda ([Int; Int], Int), "ge";
-    ">=", Lambda ([Int; Int], Int), "le";
-    "==", Lambda ([Int; Int], Int), "eq";
-    "!=", Lambda ([Int; Int], Int), "ne";
-    "<.",  Lambda ([Real; Real], Int), "fgt";
-    ">.",  Lambda ([Real; Real], Int), "flt";
-    "<=.", Lambda ([Real; Real], Int), "fge";
-    ">=.", Lambda ([Real; Real], Int), "fle";
-    "==.", Lambda ([Real; Real], Int), "feq";
-    "!=.", Lambda ([Real; Real], Int), "fne";
-    "rtoi", Lambda ([Real], Int), "rtoi";
-    "itor", Lambda ([Int], Real), "itor";
+ "+",  Lambda ([Int; Int], Int), "plus";
+ "-",  Lambda ([Int; Int], Int), "minus";
+ "*",  Lambda ([Int; Int], Int), "mul";
+ "/",  Lambda ([Int; Int], Int), "div";
+ "+.",  Lambda ([Real; Real], Real), "fplus";
+ "-.",  Lambda ([Real; Real], Real), "fminus";
+ "*.",  Lambda ([Real; Real], Real), "fmul";
+ "/.",  Lambda ([Real; Real], Real), "fdiv";
+ "<",  Lambda ([Int; Int], Int), "gt";
+ ">",  Lambda ([Int; Int], Int), "lt";
+ "<=", Lambda ([Int; Int], Int), "ge";
+ ">=", Lambda ([Int; Int], Int), "le";
+ "==", Lambda ([Int; Int], Int), "eq";
+ "!=", Lambda ([Int; Int], Int), "ne";
+ "<.",  Lambda ([Real; Real], Int), "fgt";
+ ">.",  Lambda ([Real; Real], Int), "flt";
+ "<=.", Lambda ([Real; Real], Int), "fge";
+ ">=.", Lambda ([Real; Real], Int), "fle";
+ "==.", Lambda ([Real; Real], Int), "feq";
+ "!=.", Lambda ([Real; Real], Int), "fne";
+ "rtoi", Lambda ([Real], Int), "rtoi";
+ "itor", Lambda ([Int], Real), "itor";
   ]
   |> List.map (fun (s, typ ,name) -> (Tident.make_ident s, typ, name))
 

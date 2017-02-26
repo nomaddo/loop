@@ -1,4 +1,4 @@
 type typ =
   | I4
-  | R4
+  | R8
 [@@deriving show]

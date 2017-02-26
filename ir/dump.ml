@@ -31,7 +31,7 @@ and dump_tpath fmt = function
 
 and dump_typ fmt = function
   | I4 -> Format.fprintf fmt "I4"
-  | R4 -> Format.fprintf fmt "R4"
+  | R8 -> Format.fprintf fmt "R8"
 
 and dump_bcs fmt bcs =
   List.iter (dump_bc fmt) bcs
@@ -67,8 +67,8 @@ and dump_instr fmt instr =
   | Sub (x, y, z)    -> Format.fprintf fmt "sub %a, %a, %a@." d x d y d z
   | Mul (x, y, z)    -> Format.fprintf fmt "mul %a, %a, %a@." d x d y d z
   | Div (x, y, z)    -> Format.fprintf fmt "div %a, %a, %a@." d x d y d z
-  | Str (x, y)       -> Format.fprintf fmt "store %a, %a@." d x d y
-  | Ld (x, y)        -> Format.fprintf fmt "load %a, %a@." d x d y
+  | Str (addr, y)    -> Format.fprintf fmt "store %a, %a@." dump_index_mode addr d y
+  | Ld (x, addr)     -> Format.fprintf fmt "load %a, %a@." d x dump_index_mode addr
   | Conv (x, y)      -> Format.fprintf fmt "conv %a, %a@." d x d y
   | Mov (x, y)       -> Format.fprintf fmt "mov %a, %a@." d x d y
   | Ble (x, y, b)    -> Format.fprintf fmt "ble %a, %a, block_%d@." d x d y b.id
@@ -89,3 +89,7 @@ and dump_instr fmt instr =
         (fun fmt l -> List.iter (d fmt) l) ops
   | Ret x -> Format.fprintf fmt "ret %a@." d x
   | Alloc (x, y) -> Format.fprintf fmt "alloc %a, %a@." d x d y
+
+and dump_index_mode fmt = function
+  | Base_offset {base; offset} ->
+      Format.fprintf fmt "{%a + %a}" dump_operand base dump_operand offset

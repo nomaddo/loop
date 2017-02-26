@@ -6,6 +6,8 @@ open Ir
 open Instr
 open Typed_ast
 
+let zero = Operand.new_operand (Iconst 0) I4
+
 let symbol_tbl: (Tident.path, Typed_ast.typ) Hashtbl.t = Hashtbl.create 10
 
 let global_intf : Tyenv.intf ref = ref (Obj.magic ())
@@ -14,7 +16,7 @@ let transl_typ typ =
   match typ with
   | Void -> failwith "void has no values"
   | Int  -> I4
-  | Real -> R4
+  | Real -> R8
   | Array (typ, e) -> I4
   | Lambda (typs, rettyp) -> I4
 
@@ -23,7 +25,32 @@ let transl_rettyp typ =
   | Lambda (types, rettyp) -> transl_typ rettyp
   | _ -> failwith "transl_rettyp"
 
-let rec transl_expr bc op e : instr list =
+let addr_size = 4
+
+let rec typ_sizeof = function
+  | Int -> 4
+  | Real -> 8
+  | Array (typ, e) ->
+      typ_sizeof typ * addr_size * expr_sizeof e
+  | Lambda _ -> addr_size
+  | _ -> failwith "typ_sizeof"
+
+and expr_sizeof e =
+  match e.expr_core with
+  | Iconst i -> i
+  | Call (Tident.Tident id, [x; y]) ->
+      let sopt = Tyenv.find_prim id in
+      begin match sopt with
+        | None -> failwith "expr_sizeof: sizeof array in toplevel must be fixed"
+        | Some "+" -> expr_sizeof x + expr_sizeof y
+        | Some "-" -> expr_sizeof x + expr_sizeof y
+        | Some "*" -> expr_sizeof x + expr_sizeof y
+        | Some "/" -> expr_sizeof x + expr_sizeof y
+        | _ -> failwith "expr_sizeof: sizeof array in toplevel must be fixed"
+      end
+  | _ -> failwith "expr_sizeof: sizeof array in toplevel must be fixed"
+
+let rec transl_expr bc op e =
   match e.Typed_ast.expr_core with
   | Typed_ast.Var tpath ->
       let operand =
@@ -39,14 +66,15 @@ let rec transl_expr bc op e : instr list =
       [Instr.new_instr ++ Ir.Mov (op, operand) ++ bc]
   | Aref (tpath, es) ->
       let v = Operand.new_name tpath (transl_typ e.expr_typ) in
+      let tv = Operand.new_tv (transl_typ e.expr_typ) in
       let instrs1, ops =
         List.fold_left (fun (x, y) e ->
           let v = Operand.new_tv (transl_typ e.expr_typ) in
           let instrs = transl_expr bc v e in
           x @ instrs , v::y) ([],[]) es in
       let ops = List.rev ops in
-      let instrs2 = transl_ashape bc e.expr_typ v ops in
-      instrs1 @ instrs2 @ [new_instr ++ Ld (op, v) ++ bc]
+      let instrs2 = transl_ashape bc (Tyenv.find_path !global_intf tpath) v ops in
+      instrs1 @ instrs2 @ [new_instr ++ Ld (op, Ir.Base_offset {base = tv; offset = v}) ++ bc]
   | Call (_ as tpath, es) ->
       match tpath with
       | Tident.Tident ident ->
@@ -59,12 +87,12 @@ let rec transl_expr bc op e : instr list =
                 transl_prim bc es op op.typ s
           end
 
-and transl_ashape bc atyp retop ops : instr list =
+and transl_ashape bc atyp retop ops =
   let rec elist acc atyp =
     match atyp with
     | Array (atyp', e) ->
         elist ((fun op -> transl_expr bc op e) :: acc) atyp'
-    | _ -> List.rev acc in
+    | _ as typ -> typ, List.rev acc in
   let rec calc_ops eop ops =
     List.fold_left (fun l op -> new_instr ++ Mul (eop, eop, op) ++ bc :: l) [] ops
     |> List.rev in
@@ -74,11 +102,13 @@ and transl_ashape bc atyp retop ops : instr list =
     | x :: tl -> calc_ops x ops @
           calc_rec (new_instr ++ Add (retop, retop, x) ++ bc :: acc) retop (List.tl ops) tl
     | [] -> failwith "calc_rec" in
-  let fs =  elist [] atyp in
+  let basetyp, fs =  elist [] atyp in
   let ashape_ops, instrs =
     List.map (fun f -> let op = new_tv I4 in op, f op) fs
     |> List.split |> fun (x, y) -> x, List.flatten y in
-  instrs @ calc_rec [] retop (List.tl ashape_ops) ops
+  let i = typ_sizeof basetyp in
+  instrs @ calc_rec [] retop (List.tl ashape_ops) ops @
+    [new_instr ++ Mul (retop,  retop, Operand.new_operand (Iconst i) I4) ++ bc]
 
 and transl_bin bc es op typ f =
   let ops = List.map (fun e -> Operand.new_tv (transl_typ e.expr_typ)) es in
@@ -153,21 +183,29 @@ let rec transl_decls parent bc decls =
                 next_bc
           end
         end
-      | Assign (tpath, e)                     ->
-          let op = new_operand (Operand.Var tpath) (transl_typ e.expr_typ) in
-          let instrs = transl_expr bc op e in
-          bc.instrs <- bc.instrs @ instrs;
+      | Assign (tpath, e) ->
+          let var = new_operand (Operand.Var tpath) (transl_typ e.expr_typ) in
+          let op = new_var (transl_typ e.expr_typ) in
+          let instrs1 = transl_expr bc op e in
+          let instrs2 =
+            if Tyenv.find_path_is_toplevel !global_intf tpath
+            then [new_instr ++ Str (Base_offset { base = var; offset = zero}, op) ++ bc]
+            else [new_instr ++ Mov (var, op) ++ bc]
+            in
+          bc.instrs <- bc.instrs @ instrs1 @ instrs2;
           transl_decls parent bc tl
-      | Astore (tpath, es, e)                 ->
+      | Astore (tpath, es, e) ->
           let ops = List.map (fun e -> new_tv ++ transl_typ e.expr_typ) es in
           let instrs1 =
             fold_rev2 transl_expr bc ops es |> snd |> List.flatten in
           let atyp = Hashtbl.find symbol_tbl tpath in
-          let retop = new_tv I4 in
+          let retop = new_tv ++ transl_typ e.expr_typ in
           let instrs2 = transl_ashape bc atyp retop ops in
-          let instr = new_instr
-            ++ Add (retop, retop, new_operand (Operand.Var tpath) I4) ++ bc in
-          bc.instrs <- bc.instrs @ instrs1 @ instrs2 @ [instr] ;
+          let result_op = new_tv ++ transl_typ e.expr_typ in
+          let instrs3 = transl_expr bc result_op e in
+          let instrs4 =
+            [new_instr ++ Str (Base_offset {base = Operand.new_name tpath ++ transl_typ (Tyenv.find_path !global_intf tpath); offset = retop}, result_op) ++ bc] in
+          bc.instrs <- bc.instrs @ instrs1 @ instrs2 @ instrs3 @ instrs4;
           transl_decls parent bc tl
       | For    (tpath, e1, dir, e2, eopt, ds) ->
           let ind_var = new_operand ~attrs:[Ind] (Var tpath) (transl_typ e1.expr_typ) in
@@ -253,7 +291,7 @@ let rec transl_decls parent bc decls =
                 let ops = List.map (fun e -> Operand.new_tv (transl_typ e.expr_typ)) es in
                 let instrs =
                   List.fold_left2 (fun  l op e -> transl_expr bc op e @ l) [] ops es
-                  @ [new_instr ++ Call (tpath, ops) ++ bc] in
+                  @ [new_instr ++ Ir.Call (tpath, ops) ++ bc] in
                 bc.instrs <- bc.instrs @ instrs;
             | Some s ->
                 let op = new_tv I4 in
@@ -265,7 +303,7 @@ let rec transl_decls parent bc decls =
           let ops = List.map (fun e -> Operand.new_tv (transl_typ e.expr_typ)) es in
           let instrs =
             List.fold_left2 (fun  l op e -> transl_expr bc op e @ l) [] ops es
-            @ [new_instr ++ Call (tpath, ops) ++ bc] in
+            @ [new_instr ++ Ir.Call (tpath, ops) ++ bc] in
           bc.instrs <- bc.instrs @ instrs;
           transl_decls parent bc tl
       | Return e                              ->
@@ -279,21 +317,33 @@ let transl_args args =
   List.map (fun (tpath, typ) ->
     new_operand (Var tpath) (transl_typ typ)) args
 
-let transl_fun mod_name  = function
+let transl_toplevel (f,g,m) bc mod_name = function
   | Typed_ast.Fundef (typ, tpath, args, decls) ->
       let total = Loop_info.total_loop () in
       let entry = Bc.new_bc total in
       ignore (transl_decls total entry decls);
-      let func = { label_name = Tident.make_label mod_name tpath;
-        args = transl_args args;
-        entry; loops = [];
-                   all_bc =  List.rev !Bc.all_bc } in
+      let func =
+        { label_name = Tident.make_label mod_name tpath;
+          args = transl_args args;
+          entry; loops = []; all_bc =  List.rev !Bc.all_bc } in
       Bc.clear_bc ();
-      func
-  | _ -> not_implemented_yet ()
+      (func::f, g, m)
+  | Global_var (typ, tpath, None) ->
+      let mx = { shape = typ_sizeof typ; name = tpath } in
+      (f, mx :: g, m)
+  | Global_var (typ, tpath, Some e) ->
+      let mx = { shape = typ_sizeof typ; name = tpath } in
+      let op = new_tv ++ transl_typ e.expr_typ in
+      let instrs = transl_expr bc op e in
+      (f, mx :: g, instrs :: m)
+  | Prim _ -> (f, g, m)
 
 let implementation mod_name intf tops =
+  let bc = Bc.new_bc (Loop_info.total_loop ()) in
   Bc.all_bc := [];
   global_intf := intf;
-  let funcs = List.map (transl_fun mod_name) tops in
-  { funcs; memories = []; }
+  let funcs, memories, _ =
+    List.map (transl_toplevel ([],[],[]) bc mod_name) tops
+    |> List.fold_left (fun (a, b, c) (x, y, z) ->
+      x @ a, y @ b, z @ c) ([], [], []) in
+  { funcs = List.rev funcs ; memories = List.rev memories; }
