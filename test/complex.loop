@@ -1,0 +1,22 @@
+int (int) print = prim print;
+
+int a;
+
+int main (int i, int j)
+{
+  int x = 2000;
+  if (x / 2 == 0)
+  {
+    x = x + 100;
+    a = 1 + 2 + 3;
+  }
+  else
+  {
+    x = x + 200;
+  }
+
+  while (1)
+  {
+    print (x);
+  }
+}

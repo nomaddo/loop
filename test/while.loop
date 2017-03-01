@@ -1,0 +1,9 @@
+void f (int a, int b)
+{
+  while (a + b < 10)
+  {
+    a = a + 1;
+    b = b * b;
+  }
+
+}

@@ -1,0 +1,6 @@
+void sub (int x)
+{
+  int[x][x] a;
+  a[7][11] = 12;
+  int b = a[7][11];
+}
