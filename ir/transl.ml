@@ -25,32 +25,26 @@ let transl_rettyp typ =
   | Lambda (types, rettyp) -> transl_typ rettyp
   | _ -> failwith "transl_rettyp"
 
+let int_size = 4
+let double_size = 8
 let addr_size = 4
 
-let rec typ_sizeof = function
-  | Int -> 4
-  | Real -> 8
-  | Array (typ, e) ->
-      typ_sizeof typ * addr_size * expr_sizeof e
-  | Lambda _ -> addr_size
-  | _ -> failwith "typ_sizeof"
+let addr_size_op = Operand.new_operand (Iconst addr_size) I4
 
-and expr_sizeof e =
-  match e.expr_core with
-  | Iconst i -> i
-  | Call (Tident.Tident id, [x; y]) ->
-      let sopt = Tyenv.find_prim id in
-      begin match sopt with
-        | None -> failwith "expr_sizeof: sizeof array in toplevel must be fixed"
-        | Some "+" -> expr_sizeof x + expr_sizeof y
-        | Some "-" -> expr_sizeof x + expr_sizeof y
-        | Some "*" -> expr_sizeof x + expr_sizeof y
-        | Some "/" -> expr_sizeof x + expr_sizeof y
-        | _ -> failwith "expr_sizeof: sizeof array in toplevel must be fixed"
-      end
-  | _ -> failwith "expr_sizeof: sizeof array in toplevel must be fixed"
+let rec typ_sizeof bc op typ =
+  match typ with
+    | Int -> [new_instr ++ Mov (op, Operand.new_operand (Iconst 4) I4) ++ bc]
+    | Real -> [new_instr ++ Mov (op, Operand.new_operand (Iconst 8) I4) ++ bc]
+    | Array (typ, e) ->
+        let op1 = new_tv I4 in
+        let x = typ_sizeof bc op1 typ in
+        let op2 = new_tv I4 in
+        let y = transl_expr bc op2 e in
+        x @ y @ [new_instr ++ Mul (op, op1, op2) ++ bc]
+    | Lambda _ -> [new_instr ++ Mov (op, addr_size_op) ++ bc]
+    | _ -> failwith "typ_sizeof"
 
-let rec transl_expr bc op e =
+and transl_expr bc op e =
   match e.Typed_ast.expr_core with
   | Typed_ast.Var tpath ->
       let operand =
@@ -103,12 +97,13 @@ and transl_ashape bc atyp retop ops =
           calc_rec (new_instr ++ Add (retop, retop, x) ++ bc :: acc) retop (List.tl ops) tl
     | [] -> failwith "calc_rec" in
   let basetyp, fs =  elist [] atyp in
-  let ashape_ops, instrs =
+  let ashape_ops, instrs1 =
     List.map (fun f -> let op = new_tv I4 in op, f op) fs
     |> List.split |> fun (x, y) -> x, List.flatten y in
-  let i = typ_sizeof basetyp in
-  instrs @ calc_rec [] retop (List.tl ashape_ops) ops @
-    [new_instr ++ Mul (retop,  retop, Operand.new_operand (Iconst i) I4) ++ bc]
+  let new_op = new_tv I4 in
+  let instrs2 = typ_sizeof bc new_op basetyp in
+  instrs1 @ instrs2 @ calc_rec [] retop (List.tl ashape_ops) ops @
+    [new_instr ++ Mul (retop,  retop, new_op) ++ bc]
 
 and transl_bin bc es op typ f =
   let ops = List.map (fun e -> Operand.new_tv (transl_typ e.expr_typ)) es in
@@ -131,20 +126,48 @@ and transl_prim bc es op typ s =
   | "rtoi" | "itor"   -> transl_bin bc es op typ (conv bc)
   | _ -> raise Not_found
 
+let rec typ_sizeof_static = function
+  | Int -> int_size
+  | Real -> double_size
+  | Array (typ, e) -> typ_sizeof_static typ * expr_sizeof_static e
+  | Lambda _ -> addr_size
+  | Void -> failwith "typ_sizeof_static"
+
+and expr_sizeof_static e =
+  match e.expr_core with
+  | Iconst i -> i
+  | Call (Tident.Tident id, es) ->
+      let [x; y] = List.map expr_sizeof_static es in
+      begin match Tyenv.find_prim id with
+      | Some "plus" -> x + y
+      | Some "minus" -> x - y
+      | Some "mul" -> x * y
+      | Some "div" -> x / y
+      | _ -> failwith "expr_sizeof_static: 1"
+      end
+  |  _ -> failwith "expr_sizeof_static: 2"
+
 let rec transl_decls parent bc decls =
   match decls with
   | [] -> bc
   | h :: tl -> begin
       match h with
-      (* 配列が宣言された場合にメモリ確保に相当する処理をどう表すのか *)
       | Typed_ast.Decl (typ, tpath, None) ->
           Hashtbl.add symbol_tbl tpath typ;
+          let op = new_tv I4 in
+          let instrs = typ_sizeof bc op typ in
+          let var = Operand.new_name tpath ++ transl_typ typ in
+          bc.instrs <- bc.instrs @ instrs @ [new_instr ++ Alloc (var, op) ++ bc];
           transl_decls parent bc tl
       | Decl (typ, tpath, Some e) ->
           Hashtbl.add symbol_tbl tpath typ;
+          let size_op = new_tv I4 in
+          let alloc_instrs = typ_sizeof bc size_op typ in
           let op = Operand.new_name tpath (transl_typ e.expr_typ) in
           let instrs = transl_expr bc op e in
-          bc.instrs <- bc.instrs @ instrs;
+          let var = Operand.new_name tpath ++ transl_typ typ in
+          bc.instrs <- bc.instrs @ alloc_instrs @ [new_instr ++ Alloc (var, size_op) ++ bc]
+            @ instrs @ [new_instr ++ Mov (var, op) ++ bc];
           transl_decls parent bc tl
       | If (cond, d, dopt) -> begin
           let op = new_var I4 in
@@ -167,20 +190,21 @@ let rec transl_decls parent bc decls =
                   | _ -> assert false
                 end
               | _ -> assert false
-            with _ -> transl_expr bc op cond, [new_instr ++ Ir.Beq (op, true_op, then_bc) ++ bc] in
+            with _ -> transl_expr bc op cond, [new_instr ++ Ir.Bne (op, false_op, then_bc) ++ bc] in
           bc.instrs <- bc.instrs @ instrs @ binstr;
           let last_then = transl_decls parent then_bc d in
           ignore (transl_decls parent next_bc tl);
           Bc.concat_bc last_then next_bc;
-          Bc.concat_bc bc next_bc;
           begin match dopt with
-            | None -> next_bc
+            | None ->
+                Bc.concat_bc bc next_bc;
+                transl_decls parent next_bc tl
             | Some d' ->
                 let else_bc = Bc.new_bc parent in
                 let last_else = transl_decls parent else_bc d' in
                 Bc.concat_bc bc else_bc;
                 Bc.concat_bc last_else next_bc;
-                next_bc
+                transl_decls parent next_bc tl
           end
         end
       | Assign (tpath, e) ->
@@ -329,14 +353,14 @@ let transl_toplevel (f,g,m) bc mod_name = function
       Bc.clear_bc ();
       (func::f, g, m)
   | Global_var (typ, tpath, None) ->
-      let mx = { shape = typ_sizeof typ; name = tpath } in
+      let mx = { shape = typ_sizeof_static typ; name = tpath } in
       (f, mx :: g, m)
   | Global_var (typ, tpath, Some e) ->
-      let mx = { shape = typ_sizeof typ; name = tpath } in
+      let mx = { shape = typ_sizeof_static typ; name = tpath } in
       let op = new_tv ++ transl_typ e.expr_typ in
       let instrs = transl_expr bc op e in
       (f, mx :: g, instrs :: m)
-  | Prim _ -> (f, g, m)
+  | Prim (typ, path, str) -> (f, g, m)
 
 let implementation mod_name intf tops =
   let bc = Bc.new_bc (Loop_info.total_loop ()) in

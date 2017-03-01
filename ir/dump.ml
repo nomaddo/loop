@@ -3,7 +3,13 @@ open Operand
 open Ir
 
 let rec dump fmt {funcs; memories} =
+  Format.fprintf fmt "memory@.";
+  List.iter (dump_memory fmt) memories;
+  Format.fprintf fmt "@.";
   List.iter (dump_func fmt) funcs
+
+and dump_memory fmt {name; shape} =
+  Format.fprintf fmt "M %a: %d\n" dump_tpath name shape
 
 and dump_func fmt {label_name; args; entry; all_bc} =
   Format.fprintf fmt "%s: %a start block_%d@.%a@."

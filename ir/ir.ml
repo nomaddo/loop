@@ -112,8 +112,8 @@ and memory = {
 }
 [@@deriving show]
 
-let true_op = new_operand (Iconst 0) I4
-let false_op = new_operand (Iconst 1) I4
+let true_op = new_operand (Iconst 1) I4
+let false_op = new_operand (Iconst 0) I4
 
 module Instr = struct
   type t = ila instr
@@ -163,13 +163,11 @@ module Loop_info = struct
       { pre_initial = Some dummy_bc; initial = Some dummy_bc;
         entrance = dummy_bc; terminate = dummy_bc; epilogue = dummy_bc; ind_vars = [];
         parent = Some parent; child = []; attrs = []; id = Etc.cnt () } in
-    let pre_initial = Bc.new_bc loop_info in
-    let initial     = Bc.new_bc loop_info in
+    loop_info.pre_initial <- if pre then Some (Bc.new_bc loop_info) else None;
+    loop_info.initial <- if init then Some (Bc.new_bc loop_info) else None;
     let entrance    = Bc.new_bc loop_info in
     let terminate   = Bc.new_bc loop_info in
     let epilogue    = Bc.new_bc loop_info in
-    loop_info.pre_initial <- if pre then Some pre_initial else None;
-    loop_info.initial <- if init then Some initial else None;
     loop_info.entrance <- entrance;
     loop_info.terminate <- terminate;
     loop_info.epilogue <- epilogue;

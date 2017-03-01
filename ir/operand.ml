@@ -4,8 +4,8 @@ type opcore =
   | Iconst of int
   | Rconst of string
   | Memory of int
-  | Var    of Tident.path      (* string is just comment *)
-  | Tv     of int              (* temporary variable *)
+  | Var    of Tident.path      (* variables *)
+  | Tv     of int              (* temporary variables *)
 [@@deriving show]
 
 type operand =
@@ -15,6 +15,8 @@ type operand =
 and operand_attr =
   | Ind
   | Bct
+  | Upper                       (* Var only *)
+  | Lower                       (* Var only *)
 [@@deriving show]
 
 let new_operand ?(attrs=[]) opcore typ =

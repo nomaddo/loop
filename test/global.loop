@@ -1,7 +1,9 @@
 int a = 123;
-int b;
+real[3+1*2][4] b;
 
 void sub (int i)
 {
+  int[3][7] c;
+  c[1][1] = 123;
   a = i;
 }
