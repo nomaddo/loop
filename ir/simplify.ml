@@ -7,6 +7,8 @@ open Etc
 open Operand
 open Ir
 
+let new_instr = Instr.new_instr
+
 let constant_folding x y =
   match x.opcore, y.opcore with
   | Iconst i, Iconst j ->
@@ -52,17 +54,49 @@ let shrink k op1 op2 bc dist =
 let simplify_bc bc =
   List.fold_left (fun (hash, instrs) instr ->
     match instr.instr_core with
-    | Add (op1, op2, op3)
-    | Sub (op1, op2, op3)
-    | Mul (op1, op2, op3)
+    | Add (op1, op2, op3) ->
+        Hashtbl.remove hash op1;
+        let op2_ = try_replace hash op2 in
+        let op3_ = try_replace hash op3 in
+        if Operand.is_constant op2_ && Operand.is_constant op3_ then
+          let op2 = constant_folding op2_ op3_ in
+          (hash, new_instr ++ Mov (op1, op2) ++ instr.belongs :: instrs)
+        else
+          let instr = new_instr ++ Add (op1, try_replace hash op2, try_replace hash op3) ++ bc in
+          (hash, instr :: instrs)
+
+    | Sub (op1, op2, op3) ->
+        Hashtbl.remove hash op1;
+        let op2_ = try_replace hash op2 in
+        let op3_ = try_replace hash op3 in
+        if Operand.is_constant op2_ && Operand.is_constant op3_ then
+          let op2 = constant_folding op2_ op3_ in
+          (hash, new_instr ++ Mov (op1, op2) ++ instr.belongs :: instrs)
+        else
+          let instr = new_instr ++ Sub (op1, try_replace hash op2, try_replace hash op3) ++ bc in
+          (hash, instr :: instrs)
+
+    | Mul (op1, op2, op3) ->
+        Hashtbl.remove hash op1;
+        let op2_ = try_replace hash op2 in
+        let op3_ = try_replace hash op3 in
+        if Operand.is_constant op2_ && Operand.is_constant op3_ then
+          let op2 = constant_folding op2_ op3_ in
+          (hash, new_instr ++ Mov (op1, op2) ++ instr.belongs :: instrs)
+        else
+          let instr = new_instr ++ Mul (op1, try_replace hash op2, try_replace hash op3) ++ bc in
+          (hash, instr :: instrs)
+
     | Div (op1, op2, op3) ->
         Hashtbl.remove hash op1;
         let op2_ = try_replace hash op2 in
         let op3_ = try_replace hash op3 in
         if Operand.is_constant op2_ && Operand.is_constant op3_ then
           let op2 = constant_folding op2_ op3_ in
-          (hash, Instr.new_instr ++ Mov (op1, op2) ++ instr.belongs :: instrs)
-        else (hash, instr :: instrs)
+          (hash, new_instr ++ Mov (op1, op2) ++ instr.belongs :: instrs)
+        else
+          let instr = new_instr ++ Div (op1, try_replace hash op2, try_replace hash op3) ++ bc in
+          (hash, instr :: instrs)
     | Mov (op1, op2) ->
         if Operand.is_constant op2 then begin
           Hashtbl.add hash op1 op2;
@@ -74,14 +108,14 @@ let simplify_bc bc =
         end
     | Str   (index_mode, op) ->
         let instr =
-          Instr.new_instr
+          new_instr
           ++ Str (index_mode, try_replace hash op)
           ++ instr.belongs in
         (hash, instr :: instrs)
     | Ld _ -> (hash, instr :: instrs)
     | Conv  (op1 , op2) ->
         let instr =
-          Instr.new_instr
+          new_instr
           ++ Conv (op1, try_replace hash op2)
           ++ instr.belongs in
         (hash, instr :: instrs)
@@ -107,20 +141,20 @@ let simplify_bc bc =
         (hash, instr :: instrs)
     | Call  (tpath , ops) ->
         let instr =
-          Instr.new_instr ++ Call (tpath, List.map (try_replace hash) ops) ++ bc in
+          new_instr ++ Call (tpath, List.map (try_replace hash) ops) ++ bc in
         (hash, instr :: instrs)
     | Callm (op , tpath , ops) ->
         Hashtbl.remove hash op;
         let instr =
-          Instr.new_instr ++ Callm (op, tpath, List.map (try_replace hash) ops) ++ bc in
+          new_instr ++ Callm (op, tpath, List.map (try_replace hash) ops) ++ bc in
         (hash, instr :: instrs)
     | Ret op ->
         let instr =
-          Instr.new_instr ++ Ret (try_replace hash op) ++ bc in
+          new_instr ++ Ret (try_replace hash op) ++ bc in
         (hash, instr :: instrs)
     | Alloc (op1, op2) ->
         let instr =
-          Instr.new_instr ++ Alloc (op1, try_replace hash op2) ++ bc in
+          new_instr ++ Alloc (op1, try_replace hash op2) ++ bc in
         (hash, instr :: instrs)) (Hashtbl.create 100, []) bc.instrs
   |> snd |> List.rev
 
