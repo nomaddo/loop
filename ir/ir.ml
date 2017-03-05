@@ -53,7 +53,6 @@ and br_kind =
 
 and 'a instr = {
   mutable instr_core : 'a;
-  mutable belongs    : 'a basic_block;
 }
 
 and 'a loop_info = {
@@ -115,23 +114,20 @@ let false_op = new_operand (Iconst 0) I4
 module Instr = struct
   type t = ila instr
 
-  let new_instr core bc =
-    { instr_core = core; belongs = bc }
+  let new_instr core =
+    { instr_core = core }
 
-  let copy_instr bc {instr_core; belongs} =
-    { instr_core; belongs = bc }
+  let copy_instr bc {instr_core; } =
+    { instr_core; }
 
-  let delete instr =
-    let bc = instr.belongs in
+  let delete bc instr =
     let instrs =
       List.fold_left (fun acc x ->
         if x == instr then acc else x :: acc) [] bc.instrs
       |> List.rev in
     bc.instrs <- instrs
 
-  let replace old new_ =
-    let bc = old.belongs in
-    assert (new_.belongs = bc);
+  let replace bc old new_ =
     let new_instrs =
       List.fold_left (fun acc x ->
         if x == old then new_ :: acc else x :: acc) [] bc.instrs
@@ -144,9 +140,9 @@ module Instr = struct
   let append_first bc instr =
     bc.instrs <- instr :: bc.instrs
 
-  let new_branch k x y bc bc' = new_instr ++ Branch (k, x, y, bc) ++ bc'
-  let new_bmov k op1 op2 op3 op4 bc  =
-    new_instr ++ Bmov (k, op1, op2, op3, op4) ++ bc
+  let new_branch k x y bc = new_instr ++ Branch (k, x, y, bc)
+  let new_bmov k op1 op2 op3 op4 =
+    new_instr ++ Bmov (k, op1, op2, op3, op4)
 end
 
 module Bc = struct
@@ -189,23 +185,23 @@ end
 
 open Instr
 
-let add bc op [x; y] = [new_instr ++ Add (op, x, y) ++ bc]
-let sub bc op [x; y] = [new_instr ++ Sub (op, x, y) ++ bc]
-let mul bc op [x; y] = [new_instr ++ Mul (op, x, y) ++ bc]
-let div bc op [x; y] = [new_instr ++ Div (op, x, y) ++ bc]
-let mle bc op [x; y] = [new_bmov Le op true_op  x  y bc;
-                        new_bmov Gt op false_op x  y bc]
-let mlt bc op [x; y] = [new_bmov Lt op true_op  x  y bc;
-                        new_bmov Ge op false_op x  y bc]
-let mge bc op [x; y] = [new_bmov Ge op true_op  x  y bc;
-                        new_bmov Lt op false_op x  y bc]
-let mgt bc op [x; y] = [new_bmov Gt op true_op  x  y bc;
-                        new_bmov Le op false_op x  y bc]
-let meq bc op [x; y] = [new_bmov Eq op true_op  x  y bc;
-                        new_bmov Ne op false_op x  y bc]
-let mne bc op [x; y] = [new_bmov Ne op true_op  x  y bc;
-                        new_bmov Eq op false_op x  y bc]
-let conv bc op [x] = [new_instr ++ Conv (op, x) ++ bc]
+let add op [x; y] = [new_instr ++ Add (op, x, y) ]
+let sub op [x; y] = [new_instr ++ Sub (op, x, y) ]
+let mul op [x; y] = [new_instr ++ Mul (op, x, y) ]
+let div op [x; y] = [new_instr ++ Div (op, x, y) ]
+let mle op [x; y] = [new_bmov Le op true_op  x  y ;
+                     new_bmov Gt op false_op x  y ]
+let mlt op [x; y] = [new_bmov Lt op true_op  x  y ;
+                     new_bmov Ge op false_op x  y ]
+let mge op [x; y] = [new_bmov Ge op true_op  x  y ;
+                     new_bmov Lt op false_op x  y ]
+let mgt op [x; y] = [new_bmov Gt op true_op  x  y ;
+                     new_bmov Le op false_op x  y ]
+let meq op [x; y] = [new_bmov Eq op true_op  x  y ;
+                     new_bmov Ne op false_op x  y ]
+let mne op [x; y] = [new_bmov Ne op true_op  x  y ;
+                     new_bmov Eq op false_op x  y ]
+let conv op [x] = [new_instr ++ Conv (op, x)]
 
 (* machine dependent *)
 let int_size = 4
