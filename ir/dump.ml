@@ -1,3 +1,4 @@
+open Batteries
 open Typ
 open Operand
 open Ir
@@ -11,9 +12,9 @@ let rec dump fmt {funcs; memories} =
 and dump_memory fmt {name; shape} =
   Format.fprintf fmt "M %a: %d\n" dump_tpath name shape
 
-and dump_func fmt {label_name; args; entry; all_bc} =
+and dump_func fmt {label_name; args; entry} =
   Format.fprintf fmt "%s: %a start block_%d@.%a@."
-    label_name dump_args args  entry.id dump_bcs all_bc
+    label_name dump_args args  entry.id dump_bcs entry
 
 and dump_args fmt l =
   Format.fprintf fmt "{";
@@ -36,35 +37,32 @@ and dump_tpath fmt = function
       dump_tpath fmt path
 
 and dump_typ fmt = function
+  | I2 -> Format.fprintf fmt "I2"
   | I4 -> Format.fprintf fmt "I4"
   | R8 -> Format.fprintf fmt "R8"
 
-and dump_bcs fmt bcs =
-  List.iter (dump_bc fmt) bcs
+and dump_bcs fmt bc =
+  Ir_util.iter 10 (dump_bc fmt) bc
 
 and dump_bc fmt bc =
   Format.fprintf fmt "--- block_%d %a@." bc.id dump_bc_loop_info bc;
+  Format.fprintf fmt "prevs: %a@." (fun fmt ->
+    List.iter (fun (bc:'a Ir.basic_block) -> Format.fprintf fmt "%d " bc.id)) bc.preds;
+  Format.fprintf fmt "succs: %a@." (fun fmt ->
+    List.iter (fun (bc:'a Ir.basic_block) -> Format.fprintf fmt "%d " bc.id)) bc.succs;
   List.iter (dump_instr fmt) bc.instrs;
   Format.fprintf fmt "--- next block_%s@.@."
     (match bc.next with None -> "none" | Some b -> string_of_int b.id)
 
 and dump_bc_loop_info fmt bc =
+  let s = ref "" in
   let info = bc.loop in
-  let msg =
-    if bc == info.entrance then "entr" else
-    if bc == info.terminate then "term" else
-    if bc == info.epilogue then "epi" else "" in
-  let msg =
-  match info.pre_initial, info.initial with
-  | None, None -> msg
-  | Some b1, Some b2 ->
-      if bc == b1 then "pre" else
-      if bc == b2 then "init" else msg
-  | Some b1, None ->
-      if bc == b1 then "pre" else msg
-  | None, Some b2 ->
-      if bc == b2 then "init" else msg in
-  Format.fprintf fmt "%s: %d" msg (Obj.magic info)
+  Option.may (fun bc_ -> if bc == bc_ then s := !s ^ "/pre") info.pre_initial;
+  Option.may (fun bc_ -> if bc == bc_ then s := !s ^ "/init") info.initial;
+  Option.may (fun bc_ -> if bc == bc_ then s := !s ^ "/entr") info.entrance;
+  Option.may (fun bc_ -> if bc == bc_ then s := !s ^ "/term") info.terminate;
+  Option.may (fun bc_ -> if bc == bc_ then s := !s ^ "/epi")  info.epilogue;
+  Format.fprintf fmt "%s: loop(%d)" !s info.id
 
 and dump_instr fmt instr =
   let d = dump_operand in
@@ -77,18 +75,18 @@ and dump_instr fmt instr =
   | Ld (x, addr)     -> Format.fprintf fmt "load %a, %a@." d x dump_index_mode addr
   | Conv (x, y)      -> Format.fprintf fmt "conv %a, %a@." d x d y
   | Mov (x, y)       -> Format.fprintf fmt "mov %a, %a@." d x d y
-  | Ble (x, y, b)    -> Format.fprintf fmt "ble %a, %a, block_%d@." d x d y b.id
-  | Blt (x, y, b)    -> Format.fprintf fmt "blt %a, %a, block_%d@." d x d y b.id
-  | Bge (x, y, b)    -> Format.fprintf fmt "bge %a, %a, block_%d@." d x d y b.id
-  | Bgt (x, y, b)    -> Format.fprintf fmt "bgt %a, %a, block_%d@." d x d y b.id
-  | Beq (x, y, b)    -> Format.fprintf fmt "beq %a, %a, block_%d@." d x d y b.id
-  | Bne (x, y, b)    -> Format.fprintf fmt "bne %a, %a, block_%d@." d x d y b.id
-  | Mle (x, y, z, a) -> Format.fprintf fmt "mle %a, %a, %a, %a@." d x d y d z d z
-  | Mlt (x, y, z, a) -> Format.fprintf fmt "mlt %a, %a, %a, %a@." d x d y d z d z
-  | Mge (x, y, z, a) -> Format.fprintf fmt "mge %a, %a, %a, %a@." d x d y d z d z
-  | Mgt (x, y, z, a) -> Format.fprintf fmt "mgt %a, %a, %a, %a@." d x d y d z d z
-  | Meq (x, y, z, a) -> Format.fprintf fmt "meq %a, %a, %a, %a@." d x d y d z d z
-  | Mne (x, y, z, a) -> Format.fprintf fmt "mne %a, %a, %a, %a@." d x d y d z d z
+  | Branch (k, x, y, b) ->
+      let msg =
+      match k with
+      | Le -> "ble" | Lt -> "blt" | Ge -> "bge"
+      | Gt -> "bgt" | Eq -> "beq" | Ne -> "bne" in
+      Format.fprintf fmt "%s %a, %a, block_%d@." msg d x d y b.id
+  | Bmov (k, x, y, z, a) ->
+      let msg =
+      match k with
+      | Le -> "mle" | Lt -> "mlt" | Ge -> "mge"
+      | Gt -> "mgt" | Eq -> "meq" | Ne -> "mne" in
+      Format.fprintf fmt "%s %a, %a, %a, %a@." msg d x d y d z d z
   | Callm (x, tpath, ops) -> Format.fprintf fmt "callm %a %a, %a@." d x
         dump_tpath tpath  (fun fmt l -> List.iter (d fmt) l) ops
   | Call (tpath, ops) -> Format.fprintf fmt "call %a, %a@." dump_tpath tpath

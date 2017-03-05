@@ -32,8 +32,9 @@ let main anonymous =
     begin if !Flags.print_ast then dump_ast ast end;
     let intf, tast = Typing.implementation mod_name ast in
     begin if !Flags.print_tast then dump_tast tast end;
-    let top = Transl.implementation mod_name intf tast in
+    let top = Ir_main.transl mod_name intf tast in
     begin if !Flags.print_top then dump_top top end;
+    Ila_check.check top;
     close_in inc
   with
   | _ as exn -> begin

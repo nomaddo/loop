@@ -13,6 +13,7 @@ type operand =
     mutable attrs: operand_attr list }
 
 and operand_attr =
+  | Tpath of Tident.path
   | Ind
   | Bct
   | Upper                       (* Var only *)
@@ -36,3 +37,7 @@ let new_var =
 
 let new_name ?(attrs=[]) tpath typ =
   new_operand ~attrs (Var tpath) typ
+
+let is_constant op = match op.opcore with
+  | Iconst _ | Rconst _ -> true
+  | _ -> false

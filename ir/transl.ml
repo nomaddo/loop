@@ -25,12 +25,6 @@ let transl_rettyp typ =
   | Lambda (types, rettyp) -> transl_typ rettyp
   | _ -> failwith "transl_rettyp"
 
-let int_size = 4
-let double_size = 8
-let addr_size = 4
-
-let addr_size_op = Operand.new_operand (Iconst addr_size) I4
-
 let rec typ_sizeof bc op typ =
   match typ with
     | Int -> [new_instr ++ Mov (op, Operand.new_operand (Iconst 4) I4) ++ bc]
@@ -47,9 +41,11 @@ let rec typ_sizeof bc op typ =
 and transl_expr bc op e =
   match e.Typed_ast.expr_core with
   | Typed_ast.Var tpath ->
+      let tmp = Operand.new_tv ++ transl_typ e.Typed_ast.expr_typ in
       let operand =
         new_operand (Var tpath) (transl_typ e.expr_typ) in
-      [Instr.new_instr ++ Ir.Mov (op, operand) ++ bc]
+      [Instr.new_instr ++ Ir.Ld (tmp, Base_offset {base=operand; offset=zero}) ++ bc] @
+      [Instr.new_instr ++ Ir.Mov (op, tmp) ++ bc]
   | Iconst int ->
       let operand =
         new_operand (Iconst int) (transl_typ e.expr_typ) in
@@ -164,10 +160,10 @@ let rec transl_decls parent bc decls =
           let size_op = new_tv I4 in
           let alloc_instrs = typ_sizeof bc size_op typ in
           let op = Operand.new_name tpath (transl_typ e.expr_typ) in
-          let instrs = transl_expr bc op e in
-          let var = Operand.new_name tpath ++ transl_typ typ in
-          bc.instrs <- bc.instrs @ alloc_instrs @ [new_instr ++ Alloc (var, size_op) ++ bc]
-            @ instrs @ [new_instr ++ Mov (var, op) ++ bc];
+          let tmp = Operand.new_tv (transl_typ e.expr_typ) in
+          let instrs = transl_expr bc tmp e in
+          bc.instrs <- bc.instrs @ alloc_instrs @ [new_instr ++ Alloc (op, size_op) ++ bc]
+            @ instrs @ [new_instr ++ Str (Base_offset {base=op; offset=zero}, tmp) ++ bc];
           transl_decls parent bc tl
       | If (cond, d, dopt) -> begin
           let op = new_var I4 in
@@ -181,16 +177,16 @@ let rec transl_decls parent bc decls =
                 let instrs = List.map2 (transl_expr bc) ops es |> List.flatten in
                 let s = Tyenv.find_prim id |> Option.get in
                 instrs, begin match s with
-                  | "gt" | "fgt" -> [new_instr ++ Ir.Bgt (x, y, then_bc) ++ bc]
-                  | "ge" | "fge" -> [new_instr ++ Ir.Bge (x, y, then_bc) ++ bc]
-                  | "lt" | "flt" -> [new_instr ++ Ir.Blt (x, y, then_bc) ++ bc]
-                  | "le" | "fle" -> [new_instr ++ Ir.Bgt (x, y, then_bc) ++ bc]
-                  | "eq" | "feq" -> [new_instr ++ Ir.Beq (x, y, then_bc) ++ bc]
-                  | "ne" | "fne" -> [new_instr ++ Ir.Bne (x, y, then_bc) ++ bc]
+                  | "gt" | "fgt" -> [Instr.new_branch Gt x y then_bc bc]
+                  | "ge" | "fge" -> [Instr.new_branch Ge x y then_bc bc]
+                  | "lt" | "flt" -> [Instr.new_branch Lt x y then_bc bc]
+                  | "le" | "fle" -> [Instr.new_branch Le x y then_bc bc]
+                  | "eq" | "feq" -> [Instr.new_branch Eq x y then_bc bc]
+                  | "ne" | "fne" -> [Instr.new_branch Ne x y then_bc bc]
                   | _ -> assert false
                 end
               | _ -> assert false
-            with _ -> transl_expr bc op cond, [new_instr ++ Ir.Bne (op, false_op, then_bc) ++ bc] in
+            with _ -> transl_expr bc op cond, [Instr.new_branch Ne op false_op then_bc bc] in
           bc.instrs <- bc.instrs @ instrs @ binstr;
           let last_then = transl_decls parent then_bc d in
           ignore (transl_decls parent next_bc tl);
@@ -212,10 +208,7 @@ let rec transl_decls parent bc decls =
           let op = new_var (transl_typ e.expr_typ) in
           let instrs1 = transl_expr bc op e in
           let instrs2 =
-            if Tyenv.find_path_is_toplevel !global_intf tpath
-            then [new_instr ++ Str (Base_offset { base = var; offset = zero}, op) ++ bc]
-            else [new_instr ++ Mov (var, op) ++ bc]
-            in
+            [new_instr ++ Str (Base_offset { base = var; offset = zero}, op) ++ bc] in
           bc.instrs <- bc.instrs @ instrs1 @ instrs2;
           transl_decls parent bc tl
       | Astore (tpath, es, e) ->
@@ -233,15 +226,12 @@ let rec transl_decls parent bc decls =
           transl_decls parent bc tl
       | For    (tpath, e1, dir, e2, eopt, ds) ->
           let ind_var = new_operand ~attrs:[Ind] (Var tpath) (transl_typ e1.expr_typ) in
-          let loop_info = Loop_info.make_loop ~pre:true ~init:true parent in
-          loop_info.attrs <- [For];
-          loop_info.ind_vars <- [ind_var];
 
-          let pre_initial = Option.get loop_info.pre_initial in
-          let initial = Option.get loop_info.initial in
-          let entrance = loop_info.entrance in
-          let terminate = loop_info.terminate in
-          let epilogue = loop_info.epilogue in
+          let pre_initial = Ir.Bc.new_bc parent in
+          let initial     = Ir.Bc.new_bc parent in
+          let entrance    = Ir.Bc.new_bc parent in
+          let terminate   = Ir.Bc.new_bc parent in
+          let epilogue    = Ir.Bc.new_bc parent in
 
           (* pre_initial *)
           let op1 = new_var ++ transl_typ e1.expr_typ in
@@ -250,8 +240,8 @@ let rec transl_decls parent bc decls =
           let in2 = transl_expr pre_initial op2 e2 in
           pre_initial.instrs <- in1 @ in2 @
               [new_instr ++
-                 (match dir with Ast.To -> Blt (op1, op2, epilogue)
-                               | Ast.Downto -> Bgt (op1, op2, epilogue)) ++
+                 (match dir with Ast.To -> Branch (Lt, op1, op2, epilogue)
+                               | Ast.Downto -> Branch (Gt, op1, op2, epilogue)) ++
                  pre_initial];
           Bc.concat_bc bc pre_initial;
 
@@ -265,7 +255,7 @@ let rec transl_decls parent bc decls =
           Bc.concat_bc pre_initial initial;
 
           (* entrance *)
-          let last_body = transl_decls loop_info entrance ds in
+          let last_body = transl_decls parent entrance ds in
           Bc.concat_bc initial entrance;
           Bc.concat_bc last_body terminate;
 
@@ -277,29 +267,28 @@ let rec transl_decls parent bc decls =
             | Some e -> transl_expr initial byop e in
           let in4 = f initial bct_var [bct_var; byop] in
           let in5 = g terminate ind_var [ind_var; byop] in
-          let in6 = new_instr ++ Ble (bct_var, op2, entrance) ++ terminate in
+          let in6 = Instr.new_branch Le bct_var op2 entrance terminate in
           terminate.instrs <- in3 @ in4 @ in5 @ [in6];
           Bc.concat_bc terminate epilogue;
 
           let next_bc = Bc.new_bc parent in
           Bc.concat_bc epilogue next_bc;
-          next_bc
+          transl_decls parent next_bc tl
       | While  (e, ds)                        -> begin
-          let loop_info = Loop_info.make_loop ~pre:false ~init:false parent in
-          let entrance = loop_info.entrance in
-          let terminate = loop_info.terminate in
-          let epilogue = loop_info.epilogue in
+          let entrance    = Ir.Bc.new_bc parent in
+          let terminate   = Ir.Bc.new_bc parent in
+          let epilogue    = Ir.Bc.new_bc parent in
 
           (* terminate *)
           Bc.concat_bc bc terminate;
 
           let op = new_tv ++ transl_typ e.expr_typ in
           let instrs1 = transl_expr terminate op e in
-          let instrs2 = [new_instr ++ Beq (op, true_op, entrance) ++ terminate] in
+          let instrs2 = [Instr.new_branch Eq op true_op entrance terminate] in
           terminate.instrs <- instrs1 @ instrs2;
 
           (* entrance *)
-          let last_bc = transl_decls loop_info entrance ds in
+          let last_bc = transl_decls parent entrance ds in
           Bc.concat_bc last_bc terminate;
 
           (* epilogue *)
@@ -307,7 +296,7 @@ let rec transl_decls parent bc decls =
 
           let next_bc = Bc.new_bc parent in
           Bc.concat_bc epilogue next_bc;
-          next_bc
+          transl_decls parent next_bc tl;
         end
       | Call   (Tident.Tident ident as tpath, es, typ) ->
           begin match Tyenv.find_prim ident with
@@ -346,11 +335,11 @@ let transl_toplevel (f,g,m) bc mod_name = function
       let total = Loop_info.total_loop () in
       let entry = Bc.new_bc total in
       ignore (transl_decls total entry decls);
+      Ir_util.set_control_flow entry;
       let func =
         { label_name = Tident.make_label mod_name tpath;
           args = transl_args args;
-          entry; loops = []; all_bc =  List.rev !Bc.all_bc } in
-      Bc.clear_bc ();
+          entry; loops = [] } in
       (func::f, g, m)
   | Global_var (typ, tpath, None) ->
       let mx = { shape = typ_sizeof_static typ; name = tpath } in
@@ -363,8 +352,7 @@ let transl_toplevel (f,g,m) bc mod_name = function
   | Prim (typ, path, str) -> (f, g, m)
 
 let implementation mod_name intf tops =
-  let bc = Bc.new_bc (Loop_info.total_loop ()) in
-  Bc.all_bc := [];
+  let bc = Bc.new_bc Loop_info.dummy_loop  in
   global_intf := intf;
   let funcs, memories, _ =
     List.map (transl_toplevel ([],[],[]) bc mod_name) tops

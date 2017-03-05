@@ -12,18 +12,18 @@ INTF    = \
 ETC     = ${addprefix etc/, etc.cmo flags.cmo}
 PARSING = ${addprefix parsing/, pident.cmo ast.cmo parser.cmo lexer.cmo}
 TYPING  = ${addprefix typing/, btypes.cmo tident.cmo intf_mod.cmo typed_ast.cmo tyenv.cmo typing.cmo}
-IR      = ${addprefix ir/, typ.cmo operand.cmo ir.cmo dump.cmo transl.cmo}
+IR      = ${addprefix ir/, typ.cmo operand.cmo ir.cmo ir_util.cmo dump.cmo ila_check.cmo transl.cmo simplify.cmo ir_main.cmo}
 DRIVER  = ${addprefix driver/, options.cmo main.cmo}
 
 OBJS= ${ETC} ${PARSING} ${TYPING} ${IR} ${DRIVER}
-XOBJS= ${subst, cmo, cmx, OBJS}
+XOBJS= ${subst cmo,cmx,${OBJS}}
 OPT=-g -bin-annot
 
 loop: ${INTF} ${OBJS} libloop.cma
 	$(OCAMLC) ${LIB} ${OPT} -w -A -linkpkg -linkall -o $@ ${OBJS}
 
 loop.opt: ${INTF} ${XOBJS}
-	$(OCAMLOPT) ${LIB} ${OPT} -w -A -linkpkg -linkall -o $@ ${OBJS}
+	$(OCAMLOPT) ${LIB} ${OPT} -w -A -linkpkg -linkall -o $@ ${XOBJS}
 
 libloop.cma: ${INTF} ${OBJS}
 	$(OCAMLC) ${LIB} ${OPT} -a -o $@ ${OBJS}

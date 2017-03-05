@@ -19,6 +19,11 @@ type 'a basic_block = {
   mutable attrs  : basic_block_attr list;
 
   mutable loop : 'a loop_info;
+
+  (* 最適化でノードに印をつけるために使う
+     使いたい人が自分でcleanして使う
+  *)
+  mutable traverse_attr: int
 }
 
 and basic_block_attr =
@@ -28,30 +33,23 @@ and index_mode =
   | Base_offset of { base: operand; offset: operand }
 
 and ila =
-  | Add   of operand * operand * operand
-  | Sub   of operand * operand * operand
-  | Mul   of operand * operand * operand
-  | Div   of operand * operand * operand
-  | Str   of index_mode * operand
-  | Ld    of operand * index_mode
-  | Conv  of operand * operand
-  | Mov   of operand * operand
-  | Ble   of operand * operand * ila basic_block
-  | Blt   of operand * operand * ila basic_block
-  | Bge   of operand * operand * ila basic_block
-  | Bgt   of operand * operand * ila basic_block
-  | Beq   of operand * operand * ila basic_block
-  | Bne   of operand * operand * ila basic_block
-  | Mle   of operand * operand * operand * operand
-  | Mlt   of operand * operand * operand * operand
-  | Mge   of operand * operand * operand * operand
-  | Mgt   of operand * operand * operand * operand
-  | Meq   of operand * operand * operand * operand
-  | Mne   of operand * operand * operand * operand
-  | Call  of Tident.path * operand list
-  | Callm of operand * Tident.path * operand list
-  | Ret   of operand
-  | Alloc of operand * operand
+  | Add    of operand * operand * operand
+  | Sub    of operand * operand * operand
+  | Mul    of operand * operand * operand
+  | Div    of operand * operand * operand
+  | Str    of index_mode * operand
+  | Ld     of operand * index_mode
+  | Conv   of operand * operand
+  | Mov    of operand * operand
+  | Branch of br_kind * operand * operand * ila basic_block
+  | Bmov   of br_kind * operand * operand * operand * operand
+  | Call   of Tident.path * operand list
+  | Callm  of operand * Tident.path * operand list
+  | Ret    of operand
+  | Alloc  of operand * operand
+
+and br_kind =
+  | Le | Lt | Ge | Gt | Eq | Ne
 
 and 'a instr = {
   mutable instr_core : 'a;
@@ -71,13 +69,13 @@ and 'a loop_info = {
   mutable initial    : 'a basic_block option;
 
   (* 実際の処理を始めるブロック *)
-  mutable entrance   : 'a basic_block;
+  mutable entrance   : 'a basic_block option;
 
-  (* 終了条件を行うブロック、ここからentranceへ分岐が出る *)
-  mutable terminate  : 'a basic_block;
+  (* 終了条件を行うブロック、ここからentrance,epilogueへ分岐が出る *)
+  mutable terminate  : 'a basic_block option;
 
   (* ループ終了後必ずここを通る *)
-  mutable epilogue   : 'a basic_block;
+  mutable epilogue   : 'a basic_block option;
 
   (* 親のループ *)
   mutable parent     : 'a loop_info option;
@@ -97,7 +95,6 @@ and 'a func = {
   mutable label_name: string;
   mutable args: operand list;
   mutable entry: 'a basic_block;
-  mutable all_bc: 'a basic_block list;
   mutable loops: 'a loop_info list;
 }
 
@@ -122,17 +119,40 @@ module Instr = struct
     { instr_core = core; belongs = bc }
 
   let copy_instr bc {instr_core; belongs} =
-     { instr_core; belongs = bc }
+    { instr_core; belongs = bc }
+
+  let delete instr =
+    let bc = instr.belongs in
+    let instrs =
+      List.fold_left (fun acc x ->
+        if x == instr then acc else x :: acc) [] bc.instrs
+      |> List.rev in
+    bc.instrs <- instrs
+
+  let replace old new_ =
+    let bc = old.belongs in
+    assert (new_.belongs = bc);
+    let new_instrs =
+      List.fold_left (fun acc x ->
+        if x == old then new_ :: acc else x :: acc) [] bc.instrs
+      |> List.rev in
+    bc.instrs <- new_instrs
+
+  let append_last bc instr =
+    bc.instrs <- bc.instrs @ [instr]
+
+  let append_first bc instr =
+    bc.instrs <- instr :: bc.instrs
+
+  let new_branch k x y bc bc' = new_instr ++ Branch (k, x, y, bc) ++ bc'
+  let new_bmov k op1 op2 op3 op4 bc  =
+    new_instr ++ Bmov (k, op1, op2, op3, op4) ++ bc
 end
 
 module Bc = struct
-  let all_bc : ila basic_block list ref = ref []
-  let clear_bc () = all_bc := []
-
   let new_bc ?(attrs=[]) loop =
-    let bc = { instrs = []; next = None; succs = []; loop;
-               preds = []; attrs; id = Etc.cnt (); } in
-    all_bc := bc :: !all_bc;
+    let bc = { instrs = []; next = None; succs = []; loop = loop;
+               preds = []; attrs; id = Etc.cnt (); traverse_attr = 0} in
     bc
 
   let concat_bc p n =
@@ -141,37 +161,30 @@ module Bc = struct
 end
 
 module Loop_info = struct
-
-  let dummy_bc = Obj.magic 1
-  let cnt = ref 0
-
-  let total_loop () = {
-      id = -100;
+  let empty_loop id =
+    {
+      id = id;
       ind_vars = [];
       pre_initial = None;
       initial = None;
-      entrance = dummy_bc;
-      terminate = dummy_bc;
-      epilogue = dummy_bc;
+      entrance = None;
+      terminate = None;
+      epilogue = None;
       parent = None;
       child = [];
       attrs = [Total]
-  }
+    }
 
-  let make_loop ~pre ~init parent =
-    let loop_info =
-      { pre_initial = Some dummy_bc; initial = Some dummy_bc;
-        entrance = dummy_bc; terminate = dummy_bc; epilogue = dummy_bc; ind_vars = [];
-        parent = Some parent; child = []; attrs = []; id = Etc.cnt () } in
-    loop_info.pre_initial <- if pre then Some (Bc.new_bc loop_info) else None;
-    loop_info.initial <- if init then Some (Bc.new_bc loop_info) else None;
-    let entrance    = Bc.new_bc loop_info in
-    let terminate   = Bc.new_bc loop_info in
-    let epilogue    = Bc.new_bc loop_info in
-    loop_info.entrance <- entrance;
-    loop_info.terminate <- terminate;
-    loop_info.epilogue <- epilogue;
-    loop_info
+  let dummy_loop : ila loop_info = empty_loop (-1)
+  let is_dummy_loop (loop: 'a loop_info) = loop.id = -1
+
+  let total_loop: unit -> ila loop_info =
+    let r = ref 0 in
+    fun () ->
+      incr r;
+      empty_loop (-100 - !r) |> Obj.magic
+
+  let new_loop () = empty_loop ++ Etc.cnt ()
 end
 
 open Instr
@@ -180,16 +193,23 @@ let add bc op [x; y] = [new_instr ++ Add (op, x, y) ++ bc]
 let sub bc op [x; y] = [new_instr ++ Sub (op, x, y) ++ bc]
 let mul bc op [x; y] = [new_instr ++ Mul (op, x, y) ++ bc]
 let div bc op [x; y] = [new_instr ++ Div (op, x, y) ++ bc]
-let mle bc op [x; y] = [new_instr ++ Mle (op, true_op, x, y) ++ bc;
-                        new_instr ++ Mgt (op, false_op, x, y) ++ bc]
-let mlt bc op [x; y] = [new_instr ++ Mlt (op, true_op, x, y) ++ bc;
-                        new_instr ++ Mge (op, false_op, x, y) ++ bc]
-let mge bc op [x; y] = [new_instr ++ Mge (op, true_op, x, y) ++ bc;
-                        new_instr ++ Mlt (op, false_op, x, y) ++ bc]
-let mgt bc op [x; y] = [new_instr ++ Mgt (op, true_op, x, y) ++ bc;
-                        new_instr ++ Mle (op, false_op, x, y) ++ bc]
-let meq bc op [x; y] = [new_instr ++ Meq (op, true_op, x, y) ++ bc;
-                        new_instr ++ Mne (op, false_op, x, y) ++ bc]
-let mne bc op [x; y] = [new_instr ++ Mne (op, true_op, x, y) ++ bc;
-                        new_instr ++ Meq (op, false_op, x, y) ++ bc]
+let mle bc op [x; y] = [new_bmov Le op true_op  x  y bc;
+                        new_bmov Gt op false_op x  y bc]
+let mlt bc op [x; y] = [new_bmov Lt op true_op  x  y bc;
+                        new_bmov Ge op false_op x  y bc]
+let mge bc op [x; y] = [new_bmov Ge op true_op  x  y bc;
+                        new_bmov Lt op false_op x  y bc]
+let mgt bc op [x; y] = [new_bmov Gt op true_op  x  y bc;
+                        new_bmov Le op false_op x  y bc]
+let meq bc op [x; y] = [new_bmov Eq op true_op  x  y bc;
+                        new_bmov Ne op false_op x  y bc]
+let mne bc op [x; y] = [new_bmov Ne op true_op  x  y bc;
+                        new_bmov Eq op false_op x  y bc]
 let conv bc op [x] = [new_instr ++ Conv (op, x) ++ bc]
+
+(* machine dependent *)
+let int_size = 4
+let double_size = 8
+let addr_size = 4
+
+let addr_size_op = Operand.new_operand (Iconst addr_size) I4
