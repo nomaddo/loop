@@ -16,3 +16,9 @@ let str_cnt = ref 0
 let cnt () =
   let n = !str_cnt in
   incr str_cnt; n
+
+let flag_on r =
+  r := true
+
+let flag_off r =
+  r := false

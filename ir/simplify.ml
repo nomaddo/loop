@@ -9,6 +9,8 @@ open Ir
 
 let new_instr = Instr.new_instr
 
+let flag = ref false
+
 let constant_folding x y =
   match x.opcore, y.opcore with
   | Iconst i, Iconst j ->
@@ -20,8 +22,10 @@ let constant_folding x y =
                              |> string_of_float) ++ x.typ
   | _ -> assert false
 
-let try_replace hash op =
-  try Hashtbl.find hash op with Not_found -> op
+let try_replace map op =
+  try let op_ = Map.find op map in
+    flag_on flag; op_
+  with Not_found -> op
 
 let compare_op k op1 op2 =
   let cmpi k i =
@@ -51,120 +55,131 @@ let shrink k op1 op2 bc dist =
   if compare_op k op1 op2 then
     bc.next <- Some dist
 
-let simplify_index hash index_mode =
+let simplify_index map index_mode =
   match index_mode with
   | Base_offset { base;  offset; } ->
-      Base_offset  { base;  offset = try_replace hash offset; }
+      Base_offset  { base;  offset = try_replace map offset; }
 
-let simplify_bc bc =
-  List.fold_left (fun (hash, instrs) instr ->
+let simplify_bc map bc =
+  List.fold_left (fun (map, instrs) instr ->
     match instr.instr_core with
     | Add (op1, op2, op3) ->
-        Hashtbl.remove hash op1;
-        let op2_ = try_replace hash op2 in
-        let op3_ = try_replace hash op3 in
+        let op2_ = try_replace map op2 in
+        let op3_ = try_replace map op3 in
+        let map = Map.remove op1 map in
         if Operand.is_constant op2_ && Operand.is_constant op3_ then
           let op2 = constant_folding op2_ op3_ in
-          (hash, new_instr ++ Mov (op1, op2) :: instrs)
+          (map, new_instr ++ Mov (op1, op2) :: instrs)
         else
-          let instr = new_instr ++ Add (op1, try_replace hash op2, try_replace hash op3) in
-          (hash, instr :: instrs)
+          let instr = new_instr ++ Add (op1, op2_, op3_) in
+          (map, instr :: instrs)
 
     | Sub (op1, op2, op3) ->
-        Hashtbl.remove hash op1;
-        let op2_ = try_replace hash op2 in
-        let op3_ = try_replace hash op3 in
+        let op2_ = try_replace map op2 in
+        let op3_ = try_replace map op3 in
+        let map = Map.remove op1 map in
         if Operand.is_constant op2_ && Operand.is_constant op3_ then
           let op2 = constant_folding op2_ op3_ in
-          (hash, new_instr ++ Mov (op1, op2) :: instrs)
+          (map, new_instr ++ Mov (op1, op2) :: instrs)
         else
-          let instr = new_instr ++ Sub (op1, try_replace hash op2, try_replace hash op3) in
-          (hash, instr :: instrs)
+          let instr = new_instr ++ Sub (op1, op2_, op3_) in
+          (map, instr :: instrs)
 
     | Mul (op1, op2, op3) ->
-        Hashtbl.remove hash op1;
-        let op2_ = try_replace hash op2 in
-        let op3_ = try_replace hash op3 in
+        let op2_ = try_replace map op2 in
+        let op3_ = try_replace map op3 in
+        let map = Map.remove op1 map in
         if Operand.is_constant op2_ && Operand.is_constant op3_ then
           let op2 = constant_folding op2_ op3_ in
-          (hash, new_instr ++ Mov (op1, op2)  :: instrs)
+          (map, new_instr ++ Mov (op1, op2)  :: instrs)
         else
-          let instr = new_instr ++ Mul (op1, try_replace hash op2, try_replace hash op3) in
-          (hash, instr :: instrs)
-
+          let instr = new_instr ++ Mul (op1, op2_, op3_) in
+          (map, instr :: instrs)
     | Div (op1, op2, op3) ->
-        Hashtbl.remove hash op1;
-        let op2_ = try_replace hash op2 in
-        let op3_ = try_replace hash op3 in
+        let op2_ = try_replace map op2 in
+        let op3_ = try_replace map op3 in
+        let map = Map.remove op1 map in
         if Operand.is_constant op2_ && Operand.is_constant op3_ then
           let op2 = constant_folding op2_ op3_ in
-          (hash, new_instr ++ Mov (op1, op2) :: instrs)
+          (map, new_instr ++ Mov (op1, op2) :: instrs)
         else
-          let instr = new_instr ++ Div (op1, try_replace hash op2, try_replace hash op3) in
-          (hash, instr :: instrs)
+          let instr = new_instr ++ Div (op1, op2_, op3_) in
+          (map, instr :: instrs)
     | Mov (op1, op2) ->
         if Operand.is_constant op2 then begin
-          Hashtbl.add hash op1 op2;
-          (hash, instrs) end
+        let map = Map.add op1 op2 map in
+          (map, instrs) end
         else begin
-          Hashtbl.remove hash op1;
-          Hashtbl.add hash op1 op2;
-          (hash, instr :: instrs)
+          let map = Map.add op1 op2 map in
+          (map, instr :: instrs)
         end
     | Str   (index_mode, op) ->
         let instr =
           new_instr
-          ++ Str (simplify_index hash index_mode, try_replace hash op) in
-        (hash, instr :: instrs)
+          ++ Str (simplify_index map index_mode, try_replace map op) in
+        (map, instr :: instrs)
     | Ld (op, index_mode) ->
-        Hashtbl.remove hash op;
         let instr =
           new_instr
-          ++ Ld (op, simplify_index hash index_mode) in
-        (hash, instr :: instrs)
+          ++ Ld (op, simplify_index map index_mode) in
+        let map = Map.remove op map in
+        (map, instr :: instrs)
     | Conv  (op1 , op2) ->
         let instr =
           new_instr
-          ++ Conv (op1, try_replace hash op2) in
-        (hash, instr :: instrs)
+          ++ Conv (op1, try_replace map op2) in
+        let map = Map.remove op1 map in
+        (map, instr :: instrs)
     | Branch   (k, op1, op2, dist) ->
         if is_constant op1 && is_constant op2 then begin
           shrink k op1 op2 bc dist;
-          (hash, instrs)
+          (map, instrs)
         end else
         let instr =
           Instr.new_branch k
-          ++ try_replace hash op1
-          ++ try_replace hash op2
+          ++ try_replace map op1
+          ++ try_replace map op2
           ++ bc in
-        (hash, instr :: instrs)
+        (map, instr :: instrs)
     | Bmov (k, op1 , op2, op3 , op4) ->
-        Hashtbl.remove hash op1;
+        let map = Map.remove op1 map in
         let instr =
           Instr.new_bmov k
-          ++ try_replace hash op1
-          ++ try_replace hash op2
-          ++ try_replace hash op3
-          ++ try_replace hash op4 in
-        (hash, instr :: instrs)
+          ++ try_replace map op1
+          ++ try_replace map op2
+          ++ try_replace map op3
+          ++ try_replace map op4 in
+        (map, instr :: instrs)
     | Call  (tpath , ops) ->
         let instr =
-          new_instr ++ Call (tpath, List.map (try_replace hash) ops) in
-        (hash, instr :: instrs)
+          new_instr ++ Call (tpath, List.map (try_replace map) ops) in
+        (map, instr :: instrs)
     | Callm (op , tpath , ops) ->
-        Hashtbl.remove hash op;
+        let map = Map.remove op map in
         let instr =
-          new_instr ++ Callm (op, tpath, List.map (try_replace hash) ops) in
-        (hash, instr :: instrs)
+          new_instr ++ Callm (op, tpath, List.map (try_replace map) ops) in
+        (map, instr :: instrs)
     | Ret op ->
         let instr =
-          new_instr ++ Ret (try_replace hash op) in
-        (hash, instr :: instrs)
+          new_instr ++ Ret (try_replace map op) in
+        (map, instr :: instrs)
     | Alloc (op1, op2) ->
         let instr =
-          new_instr ++ Alloc (op1, try_replace hash op2) in
-        (hash, instr :: instrs)) (Hashtbl.create 100, []) bc.instrs
-  |> snd |> List.rev
+          new_instr ++ Alloc (op1, try_replace map op2) in
+        (map, instr :: instrs)) (map, []) bc.instrs
+  |> (fun (map, instrs) -> map, List.rev instrs)
+
+let dump_map map =
+  Format.printf "dump_map: begin@.";
+  Map.foldi (fun k v () -> Format.printf "%a -> %a@." Dump.dump_operand k Dump.dump_operand v) map ();
+  Format.printf "dump_map: end@."
 
 let func {Ir.entry} =
-  Ir_util.iter 1 (fun bc -> bc.instrs <- simplify_bc bc) entry
+  flag_off flag;
+  let map = Map.empty in
+  let map = Ir_util.fold (entry.traverse_attr + 1) (fun map bc ->
+      let map, instrs = simplify_bc map bc in
+      bc.instrs <- instrs; map) map entry in
+  ignore map;
+  (* dump_map map; *)
+  !flag
