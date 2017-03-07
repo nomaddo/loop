@@ -143,6 +143,19 @@ module Instr = struct
   let new_branch k x y bc = new_instr ++ Branch (k, x, y, bc)
   let new_bmov k op1 op2 op3 op4 =
     new_instr ++ Bmov (k, op1, op2, op3, op4)
+
+  let is_branch ila = match ila.instr_core with
+    | Branch _ -> true
+    | _ -> false
+
+  let get_distination ila = match ila.instr_core with
+    | Branch (_, _, _, bc) -> bc
+    | _ -> raise Not_found
+
+  let find_branch_instr bc =
+    try Some (List.find is_branch bc.instrs) with
+    | Not_found -> None
+
 end
 
 module Bc = struct
@@ -171,14 +184,15 @@ module Loop_info = struct
       attrs = [Total]
     }
 
-  let dummy_loop : ila loop_info = empty_loop (-1)
+  let dummy_loop = Obj.magic (empty_loop (-1))
   let is_dummy_loop (loop: 'a loop_info) = loop.id = -1
 
-  let total_loop: unit -> ila loop_info =
+  let total_loop =
     let r = ref 0 in
-    fun () ->
+    (fun () ->
       incr r;
-      empty_loop (-100 - !r) |> Obj.magic
+      Obj.magic (empty_loop (-100 - !r)))
+
 
   let new_loop () = empty_loop ++ Etc.cnt ()
 end

@@ -1,7 +1,7 @@
 int f (int x)
 {
   int y = x < x;
-  for a = 1 downto 0 - 2
+  for a = 1 to x
   {
     int b = a * a;
     b = b + b;

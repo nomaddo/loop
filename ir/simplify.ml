@@ -139,7 +139,7 @@ let simplify_bc map bc =
           Instr.new_branch k
           ++ try_replace map op1
           ++ try_replace map op2
-          ++ bc in
+          ++ dist in
         (map, instr :: instrs)
     | Bmov (k, op1 , op2, op3 , op4) ->
         let map = Map.remove op1 map in

@@ -25,20 +25,20 @@ let transl_rettyp typ =
   | Lambda (types, rettyp) -> transl_typ rettyp
   | _ -> failwith "transl_rettyp"
 
-let rec typ_sizeof bc op typ =
+let rec typ_sizeof op typ =
   match typ with
     | Int -> [new_instr ++ Mov (op, Operand.new_operand (Iconst 4) I4)]
     | Real -> [new_instr ++ Mov (op, Operand.new_operand (Iconst 8) I4)]
     | Array (typ, e) ->
         let op1 = new_tv I4 in
-        let x = typ_sizeof bc op1 typ in
+        let x = typ_sizeof op1 typ in
         let op2 = new_tv I4 in
-        let y = transl_expr bc op2 e in
+        let y = transl_expr op2 e in
         x @ y @ [new_instr ++ Mul (op, op1, op2)]
     | Lambda _ -> [new_instr ++ Mov (op, addr_size_op)]
     | _ -> failwith "typ_sizeof"
 
-and transl_expr bc op e =
+and transl_expr op e =
   match e.Typed_ast.expr_core with
   | Typed_ast.Var tpath ->
       let tmp = Operand.new_tv ++ transl_typ e.Typed_ast.expr_typ in
@@ -60,10 +60,10 @@ and transl_expr bc op e =
       let instrs1, ops =
         List.fold_left (fun (x, y) e ->
           let v = Operand.new_tv (transl_typ e.expr_typ) in
-          let instrs = transl_expr bc v e in
+          let instrs = transl_expr v e in
           x @ instrs , v::y) ([],[]) es in
       let ops = List.rev ops in
-      let instrs2 = transl_ashape bc (Tyenv.find_path !global_intf tpath) v ops in
+      let instrs2 = transl_ashape (Tyenv.find_path !global_intf tpath) v ops in
       instrs1 @ instrs2 @ [new_instr ++ Ld (op, Ir.Base_offset {base = tv; offset = v})]
   | Call (_ as tpath, es) ->
       match tpath with
@@ -71,17 +71,17 @@ and transl_expr bc op e =
           begin match Tyenv.find_prim ident with
             | None ->
                 let ops = List.map (fun e -> Operand.new_tv (transl_typ e.expr_typ)) es in
-                List.fold_left2 (fun  l op e -> transl_expr bc op e @ l) [] ops es
+                List.fold_left2 (fun  l op e -> transl_expr op e @ l) [] ops es
                 @ [new_instr ++ Callm (op, tpath, ops)]
             | Some s ->
-                transl_prim bc es op op.typ s
+                transl_prim es op op.typ s
           end
 
-and transl_ashape bc atyp retop ops =
+and transl_ashape atyp retop ops =
   let rec elist acc atyp =
     match atyp with
     | Array (atyp', e) ->
-        elist ((fun op -> transl_expr bc op e) :: acc) atyp'
+        elist ((fun op -> transl_expr op e) :: acc) atyp'
     | _ as typ -> typ, List.rev acc in
   let rec calc_ops eop ops =
     List.fold_left (fun l op -> new_instr ++ Mul (eop, eop, op) :: l) [] ops
@@ -97,29 +97,29 @@ and transl_ashape bc atyp retop ops =
     List.map (fun f -> let op = new_tv I4 in op, f op) fs
     |> List.split |> fun (x, y) -> x, List.flatten y in
   let new_op = new_tv I4 in
-  let instrs2 = typ_sizeof bc new_op basetyp in
+  let instrs2 = typ_sizeof new_op basetyp in
   instrs1 @ instrs2 @ calc_rec [] retop (List.tl ashape_ops) ops @
     [new_instr ++ Mul (retop,  retop, new_op)]
 
-and transl_bin bc es op typ f =
+and transl_bin es op typ f =
   let ops = List.map (fun e -> Operand.new_tv (transl_typ e.expr_typ)) es in
-  let instrs = List.fold_left2 (fun acc op e -> transl_expr bc op e :: acc)
+  let instrs = List.fold_left2 (fun acc op e -> transl_expr op e :: acc)
       [] ops es |> List.rev |> List.flatten  in
   instrs @ f op ops
 
-and transl_prim bc es op typ s =
+and transl_prim es op typ s =
   match s with
-  | "plus" | "fplus"  -> transl_bin bc es op typ add
-  | "minus"| "fminus" -> transl_bin bc es op typ sub
-  | "mul"  | "fmul"   -> transl_bin bc es op typ mul
-  | "div"  | "fdiv"   -> transl_bin bc es op typ div
-  | "gt"   | "fgt"    -> transl_bin bc es op typ mge
-  | "lt"   | "flt"    -> transl_bin bc es op typ mlt
-  | "ge"   | "fge"    -> transl_bin bc es op typ mge
-  | "le"   | "fle"    -> transl_bin bc es op typ mle
-  | "eq"   | "feq"    -> transl_bin bc es op typ meq
-  | "ne"   | "fne"    -> transl_bin bc es op typ mne
-  | "rtoi" | "itor"   -> transl_bin bc es op typ conv
+  | "plus" | "fplus"  -> transl_bin es op typ add
+  | "minus"| "fminus" -> transl_bin es op typ sub
+  | "mul"  | "fmul"   -> transl_bin es op typ mul
+  | "div"  | "fdiv"   -> transl_bin es op typ div
+  | "gt"   | "fgt"    -> transl_bin es op typ mge
+  | "lt"   | "flt"    -> transl_bin es op typ mlt
+  | "ge"   | "fge"    -> transl_bin es op typ mge
+  | "le"   | "fle"    -> transl_bin es op typ mle
+  | "eq"   | "feq"    -> transl_bin es op typ meq
+  | "ne"   | "fne"    -> transl_bin es op typ mne
+  | "rtoi" | "itor"   -> transl_bin es op typ conv
   | _ -> raise Not_found
 
 let rec typ_sizeof_static = function
@@ -151,17 +151,17 @@ let rec transl_decls parent bc decls =
       | Typed_ast.Decl (typ, tpath, None) ->
           Hashtbl.add symbol_tbl tpath typ;
           let op = new_tv I4 in
-          let instrs = typ_sizeof bc op typ in
+          let instrs = typ_sizeof op typ in
           let var = Operand.new_name tpath ++ transl_typ typ in
           bc.instrs <- bc.instrs @ instrs @ [new_instr ++ Alloc (var, op)];
           transl_decls parent bc tl
       | Decl (typ, tpath, Some e) ->
           Hashtbl.add symbol_tbl tpath typ;
           let size_op = new_tv I4 in
-          let alloc_instrs = typ_sizeof bc size_op typ in
+          let alloc_instrs = typ_sizeof size_op typ in
           let op = Operand.new_name tpath (transl_typ e.expr_typ) in
           let tmp = Operand.new_tv (transl_typ e.expr_typ) in
-          let instrs = transl_expr bc tmp e in
+          let instrs = transl_expr tmp e in
           bc.instrs <- bc.instrs @ alloc_instrs @ [new_instr ++ Alloc (op, size_op)]
             @ instrs @ [new_instr ++ Str (Base_offset {base=op; offset=zero}, tmp)];
           transl_decls parent bc tl
@@ -174,7 +174,7 @@ let rec transl_decls parent bc decls =
               | Call  (Tident.Tident id, es) ->
                 assert (Tyenv.find_prim id != None);
                 let [x; y] as ops = List.map (fun e -> new_tv (transl_typ e.expr_typ)) es in
-                let instrs = List.map2 (transl_expr bc) ops es |> List.flatten in
+                let instrs = List.map2 transl_expr  ops es |> List.flatten in
                 let s = Tyenv.find_prim id |> Option.get in
                 instrs, begin match s with
                   | "gt" | "fgt" -> [Instr.new_branch Gt x y then_bc ]
@@ -186,7 +186,7 @@ let rec transl_decls parent bc decls =
                   | _ -> assert false
                 end
               | _ -> assert false
-            with _ -> transl_expr bc op cond, [Instr.new_branch Ne op false_op then_bc] in
+            with _ -> transl_expr op cond, [Instr.new_branch Ne op false_op then_bc] in
           bc.instrs <- bc.instrs @ instrs @ binstr;
           let last_then = transl_decls parent then_bc d in
           ignore (transl_decls parent next_bc tl);
@@ -206,7 +206,7 @@ let rec transl_decls parent bc decls =
       | Assign (tpath, e) ->
           let var = new_operand (Operand.Var tpath) (transl_typ e.expr_typ) in
           let op = new_var (transl_typ e.expr_typ) in
-          let instrs1 = transl_expr bc op e in
+          let instrs1 = transl_expr op e in
           let instrs2 =
             [new_instr ++ Str (Base_offset { base = var; offset = zero}, op)] in
           bc.instrs <- bc.instrs @ instrs1 @ instrs2;
@@ -214,12 +214,12 @@ let rec transl_decls parent bc decls =
       | Astore (tpath, es, e) ->
           let ops = List.map (fun e -> new_tv ++ transl_typ e.expr_typ) es in
           let instrs1 =
-            fold_rev2 transl_expr bc ops es |> snd |> List.flatten in
+            fold_rev2 (fun () -> transl_expr) () ops es |> snd |> List.flatten in
           let atyp = Hashtbl.find symbol_tbl tpath in
           let retop = new_tv ++ transl_typ e.expr_typ in
-          let instrs2 = transl_ashape bc atyp retop ops in
+          let instrs2 = transl_ashape atyp retop ops in
           let result_op = new_tv ++ transl_typ e.expr_typ in
-          let instrs3 = transl_expr bc result_op e in
+          let instrs3 = transl_expr result_op e in
           let instrs4 =
             [new_instr ++ Str (Base_offset {base = Operand.new_name tpath ++ transl_typ (Tyenv.find_path !global_intf tpath); offset = retop}, result_op)] in
           bc.instrs <- bc.instrs @ instrs1 @ instrs2 @ instrs3 @ instrs4;
@@ -236,8 +236,8 @@ let rec transl_decls parent bc decls =
           (* pre_initial *)
           let op1 = new_var ++ transl_typ e1.expr_typ in
           let op2 = new_var ++ transl_typ e2.expr_typ in
-          let in1 = transl_expr pre_initial op1 e1 in
-          let in2 = transl_expr pre_initial op2 e2 in
+          let in1 = transl_expr op1 e1 in
+          let in2 = transl_expr op2 e2 in
           pre_initial.instrs <- in1 @ in2 @
               [new_instr ++
                  (match dir with Ast.To -> Branch (Lt, op1, op2, epilogue)
@@ -262,7 +262,7 @@ let rec transl_decls parent bc decls =
           let f, g = match dir with Ast.To -> sub, add | Ast.Downto -> add, sub in
           let in3 = match eopt with
             | None   -> [new_instr ++ Mov (byop, new_operand (Iconst 1) I4)]
-            | Some e -> transl_expr initial byop e in
+            | Some e -> transl_expr byop e in
           let in4 = f bct_var [bct_var; byop] in
           let in5 = g ind_var [ind_var; byop] in
           let in6 = Instr.new_branch Le bct_var op2 entrance in
@@ -281,7 +281,7 @@ let rec transl_decls parent bc decls =
           Bc.concat_bc bc terminate;
 
           let op = new_tv ++ transl_typ e.expr_typ in
-          let instrs1 = transl_expr terminate op e in
+          let instrs1 = transl_expr op e in
           let instrs2 = [Instr.new_branch Eq op true_op entrance] in
           terminate.instrs <- instrs1 @ instrs2;
 
@@ -301,25 +301,25 @@ let rec transl_decls parent bc decls =
             | None ->
                 let ops = List.map (fun e -> Operand.new_tv (transl_typ e.expr_typ)) es in
                 let instrs =
-                  List.fold_left2 (fun  l op e -> transl_expr bc op e @ l) [] ops es
+                  List.fold_left2 (fun  l op e -> transl_expr op e @ l) [] ops es
                   @ [new_instr ++ Ir.Call (tpath, ops)] in
                 bc.instrs <- bc.instrs @ instrs;
             | Some s ->
                 let op = new_tv I4 in
-                let instrs = transl_prim bc es op op.typ s in
+                let instrs = transl_prim es op op.typ s in
                 bc.instrs <- bc.instrs @ instrs;
           end;
           transl_decls parent bc tl
       | Call   (Tident.Tpath _ as tpath, es, typ) ->
           let ops = List.map (fun e -> Operand.new_tv (transl_typ e.expr_typ)) es in
           let instrs =
-            List.fold_left2 (fun  l op e -> transl_expr bc op e @ l) [] ops es
+            List.fold_left2 (fun  l op e -> transl_expr op e @ l) [] ops es
             @ [new_instr ++ Ir.Call (tpath, ops)] in
           bc.instrs <- bc.instrs @ instrs;
           transl_decls parent bc tl
       | Return e                              ->
           let op = new_tv ++ transl_typ e.expr_typ in
-          let instrs = transl_expr bc op e in
+          let instrs = transl_expr op e in
           bc.instrs <- bc.instrs @ instrs;
           bc
     end
@@ -345,7 +345,7 @@ let transl_toplevel (f,g,m) bc mod_name = function
   | Global_var (typ, tpath, Some e) ->
       let mx = { shape = typ_sizeof_static typ; name = tpath } in
       let op = new_tv ++ transl_typ e.expr_typ in
-      let instrs = transl_expr bc op e in
+      let instrs = transl_expr op e in
       (f, mx :: g, instrs :: m)
   | Prim (typ, path, str) -> (f, g, m)
 
