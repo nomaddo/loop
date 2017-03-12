@@ -2,7 +2,7 @@ OCAMLC=ocamlfind ocamlc ${LIB}
 OCAMLOPT=ocamlfind ocamlopt ${LIB}
 OCAMLDEP=ocamlfind ocamldep
 
-INCLUDE=-I etc -I parsing -I typing -I ir -I driver
+INCLUDE=-I etc -I parsing -I typing -I ir -I asmgen -I driver
 LIB=-package ppx_deriving.show,batteries
 LLIB=
 
@@ -13,9 +13,10 @@ ETC     = ${addprefix etc/, etc.cmo flags.cmo}
 PARSING = ${addprefix parsing/, pident.cmo ast.cmo parser.cmo lexer.cmo}
 TYPING  = ${addprefix typing/, btypes.cmo tident.cmo intf_mod.cmo typed_ast.cmo tyenv.cmo typing.cmo}
 IR      = ${addprefix ir/, typ.cmo operand.cmo ir.cmo ir_util.cmo dump.cmo ila_check.cmo transl.cmo simplify.cmo ir_main.cmo}
+ASMGEN  = ${addprefix asmgen/, ilb.cmo ilb_dump.cmo toilb.cmo asmgen.cmo}
 DRIVER  = ${addprefix driver/, options.cmo main.cmo}
 
-OBJS= ${ETC} ${PARSING} ${TYPING} ${IR} ${DRIVER}
+OBJS= ${ETC} ${PARSING} ${TYPING} ${IR} ${ASMGEN} ${DRIVER}
 XOBJS= ${subst cmo,cmx,${OBJS}}
 OPT=-g -bin-annot
 

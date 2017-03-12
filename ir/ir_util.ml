@@ -104,7 +104,8 @@ let rec set_control_flow bc =
           succ.loop <- loop;
           bc.loop <- loop;
       ) bc.succs;
-      if Set.mem bc set then () else List.iter (search (Set.add bc set)) bc.succs
+      List.iter (fun succ -> if Set.mem succ set
+        then () else search (Set.add succ set) succ) bc.succs
     in
     iter 100 (search (Set.singleton bc)) bc
   in

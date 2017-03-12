@@ -31,6 +31,7 @@ and basic_block_attr =
 
 and index_mode =
   | Base_offset of { base: operand; offset: operand }
+  | Operand     of operand
 
 and ila =
   | Add    of operand * operand * operand
@@ -53,7 +54,11 @@ and br_kind =
 
 and 'a instr = {
   mutable instr_core : 'a;
+  mutable instr_attrs : instr_attr list
 }
+
+and instr_attr =
+  | Vars of {mutable ops: Operand.opcore list}
 
 and 'a loop_info = {
   id: int;
@@ -115,10 +120,10 @@ module Instr = struct
   type t = ila instr
 
   let new_instr core =
-    { instr_core = core }
+    { instr_core = core; instr_attrs = [] }
 
   let copy_instr bc {instr_core; } =
-    { instr_core; }
+    { instr_core; instr_attrs = [] }
 
   let delete bc instr =
     let instrs =

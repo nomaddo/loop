@@ -1,0 +1,8 @@
+void (int) print = prim print;
+
+void sub (int i, int j)
+{
+  int c = 1 + 2 + 3 + 4 + 5;
+
+  print (c + 6);
+}

@@ -2,6 +2,7 @@ open Batteries
 open Typ
 open Operand
 open Ir
+open Ilb
 
 let rec dump fmt {funcs; memories} =
   Format.fprintf fmt "memory@.";
@@ -50,7 +51,7 @@ and dump_bc fmt bc =
     List.iter (fun (bc:'a Ir.basic_block) -> Format.fprintf fmt "%d " bc.id)) bc.preds;
   Format.fprintf fmt "succs: %a@." (fun fmt ->
     List.iter (fun (bc:'a Ir.basic_block) -> Format.fprintf fmt "%d " bc.id)) bc.succs;
-  List.iter (dump_ila fmt) bc.instrs;
+  List.iter (dump_ilb fmt) bc.instrs;
   Format.fprintf fmt "--- next block_%s@.@."
     (match bc.next with None -> "none" | Some b -> string_of_int b.id)
 
@@ -70,7 +71,7 @@ and dump_index_mode fmt = function
   | Operand op ->
       Format.fprintf fmt "%a" dump_operand op
 
-and dump_ila fmt instr =
+and dump_ilb fmt instr =
   let d = dump_operand in
   match instr.instr_core with
   | Add (x, y, z)    -> Format.fprintf fmt "add %a, %a, %a@." d x d y d z
@@ -78,24 +79,26 @@ and dump_ila fmt instr =
   | Mul (x, y, z)    -> Format.fprintf fmt "mul %a, %a, %a@." d x d y d z
   | Div (x, y, z)    -> Format.fprintf fmt "div %a, %a, %a@." d x d y d z
   | Str (addr, y)    -> Format.fprintf fmt "store %a, %a@." dump_index_mode addr d y
-  | Ld (x, addr)     -> Format.fprintf fmt "load %a, %a@." d x dump_index_mode addr
   | Conv (x, y)      -> Format.fprintf fmt "conv %a, %a@." d x d y
-  | Mov (x, y)       -> Format.fprintf fmt "mov %a, %a@." d x d y
-  | Branch (k, x, y, b) ->
+  | Branch (k, b) ->
       let msg =
         match k with
         | Le -> "ble" | Lt -> "blt" | Ge -> "bge"
         | Gt -> "bgt" | Eq -> "beq" | Ne -> "bne" in
-      Format.fprintf fmt "%s %a, %a, block_%d@." msg d x d y b.id
-  | Bmov (k, x, y, z, a) ->
+      Format.fprintf fmt "%s block_%d@." msg b.id
+  | Bmov (k, x, y) ->
       let msg =
         match k with
         | Le -> "mle" | Lt -> "mlt" | Ge -> "mge"
         | Gt -> "mgt" | Eq -> "meq" | Ne -> "mne" in
-      Format.fprintf fmt "%s %a, %a, %a, %a@." msg d x d y d z d z
+      Format.fprintf fmt "%s %a, %a@." msg d x d y
   | Callm (x, tpath, ops) -> Format.fprintf fmt "callm %a %a, %a@." d x
         dump_tpath tpath  (fun fmt l -> List.iter (d fmt) l) ops
   | Call (tpath, ops) -> Format.fprintf fmt "call %a, %a@." dump_tpath tpath
         (fun fmt l -> List.iter (d fmt) l) ops
   | Ret x -> Format.fprintf fmt "ret %a@." d x
   | Alloc (x, y) -> Format.fprintf fmt "alloc %a, %a@." d x d y
+  | Bl tpath -> Format.fprintf fmt "bl %a@." dump_tpath  tpath
+  | B tpath -> Format.fprintf fmt "b %a@." dump_tpath  tpath
+  | Ldr (x, y) -> Format.fprintf fmt "ldr %a, %a@." d x dump_index_mode y
+  | Cmp (x, y) -> Format.fprintf fmt "cmp %a, %a@." d x d y
