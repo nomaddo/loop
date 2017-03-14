@@ -166,7 +166,7 @@ let rec transl_decls parent bc decls =
             @ instrs @ [new_instr ++ Str (Base_offset {base=op; offset=zero}, tmp)];
           transl_decls parent bc tl
       | If (cond, d, dopt) -> begin
-          let op = new_var I4 in
+          let op = new_tv I4 in
           let then_bc = Bc.new_bc parent in
           let next_bc = Bc.new_bc parent in
           let instrs, binstr =
@@ -205,7 +205,7 @@ let rec transl_decls parent bc decls =
         end
       | Assign (tpath, e) ->
           let var = new_operand (Operand.Var tpath) (transl_typ e.expr_typ) in
-          let op = new_var (transl_typ e.expr_typ) in
+          let op = new_tv (transl_typ e.expr_typ) in
           let instrs1 = transl_expr op e in
           let instrs2 =
             [new_instr ++ Str (Base_offset { base = var; offset = zero}, op)] in
@@ -234,8 +234,8 @@ let rec transl_decls parent bc decls =
           let epilogue    = Ir.Bc.new_bc parent in
 
           (* pre_initial *)
-          let op1 = new_var ++ transl_typ e1.expr_typ in
-          let op2 = new_var ++ transl_typ e2.expr_typ in
+          let op1 = new_tv ++ transl_typ e1.expr_typ in
+          let op2 = new_tv ++ transl_typ e2.expr_typ in
           let in1 = transl_expr op1 e1 in
           let in2 = transl_expr op2 e2 in
           pre_initial.instrs <- in1 @ in2 @
@@ -245,11 +245,11 @@ let rec transl_decls parent bc decls =
           Bc.concat_bc bc pre_initial;
 
           (* initial *)
-          let bct_var = new_var ~attrs:[Bct] op1.typ in
+          let bct_var = new_tv ~attrs:[Bct] op1.typ in
           let in1 =
-            new_instr ++ Mov (new_name ~attrs:[Ind] tpath ++ transl_typ e1.expr_typ, op1) in
-          let in2 = new_instr ++ Sub (bct_var, op2, op1) in
-          initial.instrs <- [in1; in2];
+            Mov (new_tv ~attrs:[Ind; Tpath tpath] (transl_typ e1.expr_typ), op1) in
+          let in2 = Sub (bct_var, op2, op1) in
+          initial.instrs <- List.map new_instr [in1; in2];
           Bc.concat_bc pre_initial initial;
 
           (* entrance *)
@@ -258,7 +258,7 @@ let rec transl_decls parent bc decls =
           Bc.concat_bc last_body terminate;
 
           (* terminate *)
-          let byop = new_var ++ transl_typ e2.expr_typ in
+          let byop = new_tv ++ transl_typ e2.expr_typ in
           let f, g = match dir with Ast.To -> sub, add | Ast.Downto -> add, sub in
           let in3 = match eopt with
             | None   -> [new_instr ++ Mov (byop, new_operand (Iconst 1) I4)]

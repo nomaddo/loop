@@ -4,6 +4,7 @@ int f (int x)
   for a = 1 to x
   {
     int b = a * a;
+    int[x] c;
     b = b + b;
   }
 

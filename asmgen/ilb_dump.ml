@@ -43,6 +43,7 @@ and dump_typ fmt = function
   | R8 -> Format.fprintf fmt "R8"
 
 and dump_bcs fmt bc =
+  Ir_util.reset_traverse_attr bc;
   Ir_util.iter 10 (dump_bc fmt) bc
 
 and dump_bc fmt bc =
@@ -80,6 +81,7 @@ and dump_ilb fmt instr =
   | Div (x, y, z)    -> Format.fprintf fmt "div %a, %a, %a@." d x d y d z
   | Str (addr, y)    -> Format.fprintf fmt "store %a, %a@." dump_index_mode addr d y
   | Conv (x, y)      -> Format.fprintf fmt "conv %a, %a@." d x d y
+  | Mov (x, y)       -> Format.fprintf fmt "mov %a, %a@." d x d y
   | Branch (k, b) ->
       let msg =
         match k with

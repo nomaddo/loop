@@ -42,6 +42,7 @@ and dump_typ fmt = function
   | R8 -> Format.fprintf fmt "R8"
 
 and dump_bcs fmt bc =
+  Ir_util.reset_traverse_attr bc;
   Ir_util.iter 10 (dump_bc fmt) bc
 
 and dump_bc fmt bc =

@@ -1,4 +1,5 @@
 open Ir
+open Batteries
 
 module BcMap = Hashtbl.Make (struct
     type t = Ir.ila Ir.basic_block
@@ -18,7 +19,7 @@ let transl_instr hash memories instr =
   | Str    (index_mode, op)        -> [Ilb.Str (index_mode, op)]
   | Ld     (op, index_mode)        -> [Ilb.Ldr (op, index_mode)]
   | Conv   (op1, op2)              -> [Ilb.Conv (op1, op2)]
-  | Mov    (op1, op2)              -> [Ilb.Ldr (op1, Ir.Operand op2)]
+  | Mov    (op1, op2)              -> [Ilb.Mov (op1, op2)]
   | Branch (k, op1, op2, bc)       -> [Ilb.Cmp (op1, op2);
                                        Ilb.Branch (k, access_with_int hash bc)]
   | Bmov   (k, op1, op2, op3, op4) -> [Ilb.Cmp (op1, op2); Ilb.Bmov (k, op3, op4)]
@@ -31,7 +32,8 @@ let transl_instr hash memories instr =
 let rec transl_bc hash memories bc =
   let instrs = List.map (transl_instr hash memories) bc.instrs |> List.flatten in
   let bbc = access_with_int hash bc in
-  bbc.instrs <- instrs
+  bbc.instrs <- instrs;
+  bbc.next <- try (Option.map (BcMap.find hash) bc.next) with Not_found -> None
 
 let transl_func memories {Ir.label_name; args; entry} =
   let hash = BcMap.create 100 in
@@ -40,6 +42,7 @@ let transl_func memories {Ir.label_name; args; entry} =
       (Bc.new_bc Loop_info.dummy_loop)) entry;
   let new_bc = BcMap.find hash entry in
   Ir_util.iter 200 (transl_bc hash memories) entry;
+  Ilb_util.set_control_flow new_bc;
   {Ir.label_name; args; entry = new_bc; loops = []}
 
 let transl {Ir.funcs; memories} =

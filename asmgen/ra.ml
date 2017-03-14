@@ -3,8 +3,9 @@
    属性にする
 *)
 
-let transl_func
+let transl_func func =
+
 
 let transl {Ir.memories; funcs} =
-  let funcs = List.map transl_funcs funcs in
+  let funcs = List.map (transl_funcs memories) funcs in
   { memories; funcs }

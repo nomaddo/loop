@@ -6,6 +6,7 @@ type opcore =
   | Memory of int
   | Var    of Tident.path      (* variables *)
   | Tv     of int              (* temporary variables *)
+  | Sp                         (* stack pointer, ilbにのみ登場する *)
 [@@deriving show]
 
 type operand =
@@ -16,8 +17,6 @@ and operand_attr =
   | Tpath of Tident.path
   | Ind
   | Bct
-  | Upper                       (* Var only *)
-  | Lower                       (* Var only *)
 [@@deriving show]
 
 let new_operand ?(attrs=[]) opcore typ =
@@ -27,12 +26,14 @@ let count, reset =
   let r = ref 0 in
   ((fun () -> incr r; !r), (fun () -> r := 0))
 
-let new_tv typ =
-    { opcore = Tv (count ()); typ; attrs = [] }
+let new_tv ?(attrs=[]) ?(opt=None) typ =
+    { opcore = Tv (count ()); typ;
+      attrs = attrs @ match opt with None -> []
+                                   | Some tpath -> [Tpath tpath]}
 
 let new_var =
   fun ?(attrs=[]) typ ->
-    let tpath = Tident.path ("@" ^ string_of_int (count ())) in
+    let tpath = Tident.path ("_" ^ string_of_int (count ())) in
     { opcore = Var tpath; typ; attrs; }
 
 let new_name ?(attrs=[]) tpath typ =

@@ -1,6 +1,6 @@
 let print_ast = ref false
-let print_tast = ref true
-let print_ila = ref true
+let print_tast = ref false
+let print_ila = ref false
 let print_ilb = ref true
 let search_path : string list ref = ref []
 

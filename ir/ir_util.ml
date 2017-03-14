@@ -24,7 +24,7 @@ let rec iter num f (bc: 'a basic_block) =
     List.iter (iter num f) bc.succs
   end
 
-let reset_traverse_attr bc = iter 0 (fun _ -> ()) bc
+let reset_traverse_attr bc = iter (-100) (fun _ -> ()) bc
 
 let rec find_path (x: 'a basic_block) (y: 'a basic_block) =
   let mark bc = bc.traverse_attr <- bc.traverse_attr + 10000 in

@@ -13,7 +13,7 @@ ETC     = ${addprefix etc/, etc.cmo flags.cmo}
 PARSING = ${addprefix parsing/, pident.cmo ast.cmo parser.cmo lexer.cmo}
 TYPING  = ${addprefix typing/, btypes.cmo tident.cmo intf_mod.cmo typed_ast.cmo tyenv.cmo typing.cmo}
 IR      = ${addprefix ir/, typ.cmo operand.cmo ir.cmo ir_util.cmo dump.cmo ila_check.cmo transl.cmo simplify.cmo ir_main.cmo}
-ASMGEN  = ${addprefix asmgen/, ilb.cmo ilb_dump.cmo toilb.cmo asmgen.cmo}
+ASMGEN  = ${addprefix asmgen/, ilb.cmo ilb_dump.cmo ilb_util.cmo toilb.cmo asmgen.cmo}
 DRIVER  = ${addprefix driver/, options.cmo main.cmo}
 
 OBJS= ${ETC} ${PARSING} ${TYPING} ${IR} ${ASMGEN} ${DRIVER}
