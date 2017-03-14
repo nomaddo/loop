@@ -26,7 +26,8 @@ let transl_instr hash memories instr =
   | Call   (tpath , ops)           -> [Ilb.Call (tpath , ops)]
   | Callm  (op, tpath, ops)        -> [Ilb.Callm  (op, tpath, ops)]
   | Ret    op                      -> [Ilb.Ret op]
-  | Alloc  (op1, op2)              -> [Ilb.Alloc  (op1, op2)] in
+  | Alloc  (op1, op2)              -> [Ilb.Alloc  (op1, op2)]
+  | Dealloc  (op1, op2)            -> [Ilb.Dealloc  (op1, op2)] in
   List.map Instr.new_instr cores
 
 let rec transl_bc hash memories bc =
@@ -35,7 +36,7 @@ let rec transl_bc hash memories bc =
   bbc.instrs <- instrs;
   bbc.next <- try (Option.map (BcMap.find hash) bc.next) with Not_found -> None
 
-let transl_func memories {Ir.label_name; args; entry} =
+let transl_func memories {Ir.label_name; args; entry; dealloc} =
   let hash = BcMap.create 100 in
   Ir_util.reset_traverse_attr entry;
   Ir_util.iter 100 (fun bc -> insert_with_int hash bc
@@ -43,7 +44,8 @@ let transl_func memories {Ir.label_name; args; entry} =
   let new_bc = BcMap.find hash entry in
   Ir_util.iter 200 (transl_bc hash memories) entry;
   Ilb_util.set_control_flow new_bc;
-  {Ir.label_name; args; entry = new_bc; loops = []}
+  {Ir.label_name; args; entry = new_bc; loops = [];
+   dealloc = List.map (transl_instr hash memories) dealloc |> List.flatten }
 
 let transl {Ir.funcs; memories} =
   {memories; funcs = List.map (transl_func memories) funcs}

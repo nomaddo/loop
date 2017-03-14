@@ -59,6 +59,7 @@ let simplify_index map index_mode =
   match index_mode with
   | Base_offset { base;  offset; } ->
       Base_offset  { base;  offset = try_replace map offset; }
+  | Operand op -> Operand op
 
 let simplify_bc map bc =
   List.fold_left (fun (map, instrs) instr ->
@@ -166,6 +167,10 @@ let simplify_bc map bc =
     | Alloc (op1, op2) ->
         let instr =
           new_instr ++ Alloc (op1, try_replace map op2) in
+        (map, instr :: instrs)
+    | Dealloc (op1, op2) ->
+        let instr =
+          new_instr ++ Dealloc (op1, try_replace map op2) in
         (map, instr :: instrs)) (map, []) bc.instrs
   |> (fun (map, instrs) -> map, List.rev instrs)
 

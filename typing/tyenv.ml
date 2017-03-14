@@ -61,20 +61,11 @@ let rec lookup_ppath intf ppath =
             Format.printf "lookup_ppath: %s not found@." (Pident.show_path ppath);
           raise exn
       end
-  | Pident.Ppath (ident, path) ->
-     let tpath_mod, lintf = Map.find ident intf.intf_mod in
-     let tpath_name, typ  = lookup_ppath lintf path in
-     (Tident.Tpath (Tident.ident tpath_mod, tpath_name), typ)
 
 let rec mem_ppath intf ppath =
   match ppath with
   | Pident.Pident ident ->
       Map.mem ident intf.intf_path
-  | Pident.Ppath (ident, path) ->
-      if Map.mem ident intf.intf_mod then
-        let _, lintf = Map.find ident intf.intf_mod in
-        mem_ppath lintf path
-      else false
 
 let rec find_path intf tpath =
   match tpath with
@@ -83,8 +74,7 @@ let rec find_path intf tpath =
           Format.printf "find_path: %s not found@." ++ Tident.show_path tpath;
           raise exn
     end
-  | Tident.Tpath (id, tpath) ->
-      find_path (Map.find id intf.intf_mod_) tpath
+
 
 let rec find_path_is_toplevel intf tpath =
   match tpath with
@@ -93,8 +83,6 @@ let rec find_path_is_toplevel intf tpath =
           Format.printf "find_path: %s not found@." ++ Tident.show_path tpath;
           raise exn
     end
-  | Tident.Tpath (id, tpath) ->
-      find_path_is_toplevel (Map.find id intf.intf_mod_) tpath
 
 let insert_path ?(top=false) intf s ty =
   if mem_ppath intf (Pident.Pident s) then

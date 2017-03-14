@@ -10,6 +10,12 @@ let ast =
 let tast =
   ("--tast", Arg.Unit (on Flags.print_tast), "")
 
+let ila =
+  ("--ila", Arg.Unit (on Flags.print_ila), "")
+
+let ilb =
+  ("--ilb", Arg.Unit (on Flags.print_ilb), "")
+
 let intf =
   ("-I", Arg.String (fun s -> add Flags.search_path s), "")
 
@@ -23,4 +29,4 @@ let noopt =
   ("-O0", Arg.Unit (off Flags.opt), "")
 
 let spec =
-  [ ast; intf; dflag; opt; noopt ]
+  [ ast; tast; ila; ilb; intf; dflag; opt; noopt ]

@@ -103,3 +103,9 @@ and check_instr ~last instr = match instr.instr_core with
         Format.printf "check_instr: mismatch@. %a, and %a@."
           Dump.dump_operand op1 Dump.dump_operand op2;
       failwith "check_instr: type mismatch conditional alloc" end;
+  | Dealloc (op1, op2) ->
+      check_operand op1; check_operand op2;
+      if op2.typ != addr_size_op.typ then begin
+        Format.printf "check_instr: mismatch@. %a, and %a@."
+          Dump.dump_operand op1 Dump.dump_operand op2;
+      failwith "check_instr: type mismatch conditional dealloc" end;

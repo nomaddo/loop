@@ -6,7 +6,6 @@ type intf_mod =
 
 let rec mangling = function
   | Tident ident -> Tident { ident with id = Btypes.gen_sym () }
-  | Tpath (ident, path) -> Tpath ({ident with id = Btypes.gen_sym ()}, mangling path)
 
 let search_file path =
   let file = List.find (fun s ->

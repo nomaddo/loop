@@ -48,6 +48,7 @@ and ila =
   | Callm  of operand * Tident.path * operand list
   | Ret    of operand
   | Alloc  of operand * operand
+  | Dealloc of operand * operand
 
 and br_kind =
   | Le | Lt | Ge | Gt | Eq | Ne
@@ -100,6 +101,7 @@ and 'a func = {
   mutable args: operand list;
   mutable entry: 'a basic_block;
   mutable loops: 'a loop_info list;
+  mutable dealloc: 'a instr list
 }
 
 and 'a toplevel = {

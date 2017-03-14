@@ -72,7 +72,6 @@ let rec set_control_flow bc =
 
   let reset_loop bc =
     iter (-100) (fun bc ->
-      Format.printf "reset_loop: reset block_%d@." bc.id;
       bc.loop <- Loop_info.dummy_loop) bc in
 
   let set_total_loop loop bc =
@@ -80,7 +79,6 @@ let rec set_control_flow bc =
       if Loop_info.is_dummy_loop bc.loop
       then begin
         bc.loop <- loop;
-        Format.printf "set_total_loop: set loop(%d) to block_%d@." loop.id bc.id
       end) bc in
 
   (* succs, predsがセットされたことを前提にする *)

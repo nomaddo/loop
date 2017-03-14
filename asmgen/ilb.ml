@@ -21,6 +21,7 @@ type ilb =
   | Call   of Tident.path * operand list
   | Callm  of operand * Tident.path * operand list
   | Alloc  of operand * operand
+  | Dealloc  of operand * operand
 
 let is_branch instr = match instr.Ir.instr_core with
   | Branch (k, b) -> true

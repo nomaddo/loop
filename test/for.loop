@@ -5,7 +5,9 @@ int f (int x)
   {
     int b = a * a;
     int[x] c;
+    if (b == 0)
+    { return f (3); }
     b = b + b;
   }
-
+  return y;
 }

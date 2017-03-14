@@ -13,9 +13,11 @@ let rec dump fmt {funcs; memories} =
 and dump_memory fmt {name; shape} =
   Format.fprintf fmt "M %a: %d\n" dump_tpath name shape
 
-and dump_func fmt {label_name; args; entry} =
-  Format.fprintf fmt "%s: %a start block_%d@.%a@."
-    label_name dump_args args  entry.id dump_bcs entry
+and dump_func fmt {label_name; args; entry; dealloc} =
+  Format.fprintf fmt "%s: %a start block_%d@."
+    label_name dump_args args entry.id;
+  Format.fprintf fmt "dealloc: %a@." (fun fmt -> List.iter (dump_ilb fmt)) dealloc;
+  Format.fprintf fmt "%a@." dump_bcs entry
 
 and dump_args fmt l =
   Format.fprintf fmt "{";
@@ -30,12 +32,10 @@ and dump_operand fmt op =
   | Var    tpath -> Format.fprintf fmt "$%a(%a)"
         dump_tpath tpath dump_typ op.typ
   | Tv     i -> Format.fprintf fmt "@%d(%a)" i dump_typ op.typ
+  | Sp       -> Format.fprintf fmt "sp"
 
 and dump_tpath fmt = function
   | Tident.Tident id -> Format.fprintf fmt "%s(%d)" id.name id.id
-  | Tident.Tpath (id, path) ->
-      Format.fprintf fmt "%s."id.name;
-      dump_tpath fmt path
 
 and dump_typ fmt = function
   | I2 -> Format.fprintf fmt "I2"
@@ -100,6 +100,7 @@ and dump_ilb fmt instr =
         (fun fmt l -> List.iter (d fmt) l) ops
   | Ret x -> Format.fprintf fmt "ret %a@." d x
   | Alloc (x, y) -> Format.fprintf fmt "alloc %a, %a@." d x d y
+  | Dealloc (x, y) -> Format.fprintf fmt "dealloc %a, %a@." d x d y
   | Bl tpath -> Format.fprintf fmt "bl %a@." dump_tpath  tpath
   | B tpath -> Format.fprintf fmt "b %a@." dump_tpath  tpath
   | Ldr (x, y) -> Format.fprintf fmt "ldr %a, %a@." d x dump_index_mode y

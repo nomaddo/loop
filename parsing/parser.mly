@@ -138,7 +138,6 @@ expr:
 | LPAREN expr RPAREN { $2 }
 
 ident:
-| MODULE DOT ident  { Ppath ($1, $3)}
 | declared_ident    { $1 }
 
 declared_ident:
