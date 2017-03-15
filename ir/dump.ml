@@ -12,10 +12,10 @@ let rec dump fmt {funcs; memories} =
 and dump_memory fmt {name; shape} =
   Format.fprintf fmt "M %a: %d\n" dump_tpath name shape
 
-and dump_func fmt {label_name; args; entry; dealloc} =
+and dump_func fmt {label_name; args; entry; } =
   Format.fprintf fmt "%s: %a start block_%d@."
     label_name dump_args args entry.id;
-  Format.fprintf fmt "dealloc: %a@." (fun fmt -> List.iter (dump_ila fmt)) dealloc;
+  (* Format.fprintf fmt "dealloc: %a@." (fun fmt -> List.iter (dump_ila fmt)) dealloc; *)
   Format.fprintf fmt "%a@." dump_bcs entry
 
 and dump_args fmt l =

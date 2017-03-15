@@ -145,7 +145,10 @@ and expr_sizeof_static e =
 
 let rec transl_decls parent bc dealloc decls =
   match decls with
-  | [] -> bc, dealloc
+  | [] ->
+      if Instr.include_ret bc then () else
+        bc.instrs <- bc.instrs @ List.map new_instr dealloc;
+      bc, dealloc
   | h :: tl -> begin
       match h with
       | Typed_ast.Decl (typ, tpath, None) ->
@@ -199,7 +202,7 @@ let rec transl_decls parent bc dealloc decls =
                 let last_else, dealloc__ = transl_decls parent else_bc dealloc d' in
                 Bc.concat_bc bc else_bc;
                 Bc.concat_bc last_else next_bc;
-                transl_decls parent next_bc (dealloc @ dealloc__) tl
+                transl_decls parent next_bc dealloc__ tl
           end
         end
       | Assign (tpath, e) ->
@@ -327,12 +330,12 @@ let transl_toplevel (f,g,m) bc mod_name = function
   | Typed_ast.Fundef (typ, tpath, args, decls) ->
       let total = Loop_info.total_loop () in
       let entry = Bc.new_bc total in
-      let _, dealloc = transl_decls total entry [] decls in
+      transl_decls total entry [] decls |> ignore;
       Ir_util.set_control_flow entry;
       let func =
         { label_name = Tident.make_label mod_name tpath;
           args = transl_args args;
-          entry; loops = []; dealloc = List.map new_instr dealloc } in
+          entry; loops = [] } in
       (func::f, g, m)
   | Global_var (typ, tpath, None) ->
       let mx = { shape = typ_sizeof_static typ; name = tpath } in

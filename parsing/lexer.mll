@@ -80,7 +80,7 @@ rule token = parse
 | '}'               { update lexbuf; RBRACE }
 | ';'               { update lexbuf; SEMI }
 | ','               { update lexbuf; COMMA }
-| '.'               { update lexbuf; DOT }
+(* | '.'               { update lexbuf; DOT } *)
 | "//" [^ '\n'] * ('\n' | eof)  { update lexbuf; token lexbuf }
 | ['=' '<' '>' '|' '&' '$'] ops * as str
   { update lexbuf; OP0 (Pident str) }
@@ -90,6 +90,7 @@ rule token = parse
   { update lexbuf; OP2 (Pident str) }
 | ['*' '/' '%'] ops * as str
   { update lexbuf; OP3 (Pident str) }
+(*
 | module_head char *       {
     let s = Lexing.lexeme lexbuf in
     update lexbuf;
@@ -97,6 +98,7 @@ rule token = parse
       Hashtbl.find keyword_table s
     with Not_found -> MODULE s
   }
+*)
 | ident_head char *       {
     let s = Lexing.lexeme lexbuf in
     update lexbuf;

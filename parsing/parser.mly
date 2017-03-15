@@ -7,7 +7,6 @@
 
 %token COMMA SEMI LPAREN RPAREN
 %token <string> IDENT
-%token <string> MODULE
 %token VOID INT REAL
 %token LBRACE RBRACE
 %token <int> INTEGER
@@ -19,8 +18,9 @@
 %token PRIM
 
 %token WHILE
-%token DOT
 
+(* %token <string> MODULE
+   %token DOT *)
 %token RETURN
 
 %token <Pident.path> OP0

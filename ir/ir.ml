@@ -101,7 +101,7 @@ and 'a func = {
   mutable args: operand list;
   mutable entry: 'a basic_block;
   mutable loops: 'a loop_info list;
-  mutable dealloc: 'a instr list
+  (* mutable dealloc: 'a instr list *)
 }
 
 and 'a toplevel = {
@@ -163,6 +163,13 @@ module Instr = struct
     try Some (List.find is_branch bc.instrs) with
     | Not_found -> None
 
+  let is_ret instr =
+    match instr.instr_core with
+    | Ret _ -> true | _ -> false
+
+  let include_ret bc =
+    try ignore (List.find is_ret bc.instrs); true
+    with Not_found -> false
 end
 
 module Bc = struct
