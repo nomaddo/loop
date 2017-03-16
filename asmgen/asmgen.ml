@@ -1,2 +1,5 @@
 let transl top =
-  Toilb.transl top
+  let top = Toilb.transl top in
+  Format.printf "%a@." Ilb_dump.dump top;
+  Sa.transl top;
+  top

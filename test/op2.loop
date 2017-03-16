@@ -1,4 +1,10 @@
-int sub (real a)
+int (int) f = prim f;
+
+int sub (int a)
 {
-  int b = c + d * e @@ 2 + f (1);
+  int[10] hoge;
+  int x;
+  int y;
+  f (hoge[0] + hoge[1] + hoge[2] + hoge[3]);
+  return (y);
 }

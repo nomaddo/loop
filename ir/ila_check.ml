@@ -4,9 +4,9 @@ open Operand
 let rec check {funcs; memories} =
   try
     List.iter check_func funcs
-  with _ ->
+  with exn ->
     Format.printf "%a@." Dump.dump {funcs; memories};
-    assert false
+    raise exn
 
 and check_func {label_name; args; entry; loops} =
   Ir_util.iter 10 check_bc entry

@@ -3,10 +3,10 @@ open Typ
 type opcore =
   | Iconst of int
   | Rconst of string
-  | Memory of int
   | Var    of Tident.path      (* variables *)
   | Tv     of int              (* temporary variables *)
   | Sp                         (* stack pointer, ilbにのみ登場する *)
+  | Fp                         (* frame pointer, ilbにのみ登場する *)
 [@@deriving show]
 
 type operand =

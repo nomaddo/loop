@@ -55,16 +55,17 @@ and transl_expr op e =
         new_operand (Rconst str) (transl_typ e.expr_typ) in
       [Instr.new_instr ++ Ir.Mov (op, operand)]
   | Aref (tpath, es) ->
-      let v = Operand.new_name tpath (transl_typ e.expr_typ) in
-      let tv = Operand.new_tv (transl_typ e.expr_typ) in
+      let base = Operand.new_name tpath (transl_typ e.expr_typ) in
+      let size = Operand.new_tv (transl_typ e.expr_typ) in
       let instrs1, ops =
-        List.fold_left (fun (x, y) e ->
+        List.fold_left (fun (acc, vars) e ->
           let v = Operand.new_tv (transl_typ e.expr_typ) in
           let instrs = transl_expr v e in
-          x @ instrs , v::y) ([],[]) es in
+          acc @ instrs , v::vars) ([],[]) es in
       let ops = List.rev ops in
-      let instrs2 = transl_ashape (Tyenv.find_path !global_intf tpath) v ops in
-      instrs1 @ instrs2 @ [new_instr ++ Ld (op, Ir.Base_offset {base = tv; offset = v})]
+      let instrs2 = transl_ashape (Tyenv.find_path !global_intf tpath) size ops in
+      instrs1 @ instrs2 @
+        [new_instr ++ Ld (op, Ir.Base_offset {base; offset = size})]
   | Call (_ as tpath, es) ->
       match tpath with
       | Tident.Tident ident ->
@@ -77,28 +78,35 @@ and transl_expr op e =
                 transl_prim es op op.typ s
           end
 
-and transl_ashape atyp retop ops =
-  let rec elist acc atyp =
+and multiple_ops ret ops =
+  List.fold_left (fun instrs op -> new_instr ++ Mul (ret, ret, op) :: instrs) [] ops
+  |> List.rev
+
+and calc_each_size_of_dimension atyp =
+  let instrs = ref [] in
+  let ops = ref [] in
+  let rec  f atyp =
     match atyp with
-    | Array (atyp', e) ->
-        elist ((fun op -> transl_expr op e) :: acc) atyp'
-    | _ as typ -> typ, List.rev acc in
-  let rec calc_ops eop ops =
-    List.fold_left (fun l op -> new_instr ++ Mul (eop, eop, op) :: l) [] ops
-    |> List.rev in
+    | Array (atyp_, e) ->
+        let op = new_tv ++ transl_typ e.expr_typ in
+        ops := op :: !ops;
+        instrs := !instrs @ transl_expr op e;
+        f atyp_
+    | _ as typ -> typ in
+  let basetyp = f atyp in
+  basetyp, !ops, !instrs
+
+and transl_ashape atyp retop ops =
   let rec calc_rec acc retop ops eops =
     match eops with
     | x :: [] -> new_instr ++ Mov (retop, x) :: acc
-    | x :: tl -> calc_ops x ops @
+    | x :: tl -> multiple_ops x ops @
           calc_rec (new_instr ++ Add (retop, retop, x) :: acc) retop (List.tl ops) tl
     | [] -> failwith "calc_rec" in
-  let basetyp, fs =  elist [] atyp in
-  let ashape_ops, instrs1 =
-    List.map (fun f -> let op = new_tv I4 in op, f op) fs
-    |> List.split |> fun (x, y) -> x, List.flatten y in
+  let basetyp, dimension_sizes, instrs1 = calc_each_size_of_dimension atyp in
   let new_op = new_tv I4 in
   let instrs2 = typ_sizeof new_op basetyp in
-  instrs1 @ instrs2 @ calc_rec [] retop (List.tl ashape_ops) ops @
+  instrs1 @ instrs2 @ calc_rec [] retop (List.tl dimension_sizes) ops @
     [new_instr ++ Mul (retop,  retop, new_op)]
 
 and transl_bin es op typ f =

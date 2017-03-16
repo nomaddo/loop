@@ -28,11 +28,11 @@ and dump_operand fmt op =
   match op.opcore with
   | Iconst i -> Format.fprintf fmt "%d" i
   | Rconst s -> Format.fprintf fmt "%s" s
-  | Memory i -> Format.fprintf fmt "M_%d" i
   | Var    tpath -> Format.fprintf fmt "$%a(%a)"
         dump_tpath tpath dump_typ op.typ
   | Tv     i -> Format.fprintf fmt "@%d(%a)" i dump_typ op.typ
   | Sp       -> Format.fprintf fmt "sp"
+  | Fp       -> Format.fprintf fmt "fp"
 
 and dump_tpath fmt = function
   | Tident.Tident id -> Format.fprintf fmt "%s(%d)" id.name id.id

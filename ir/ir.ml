@@ -141,6 +141,13 @@ module Instr = struct
       |> List.rev in
     bc.instrs <- new_instrs
 
+  let replace_instrs bc old news =
+    let new_instrs =
+      List.fold_left (fun acc x ->
+        if x == old then news @ acc else x :: acc) [] bc.instrs
+      |> List.rev in
+    bc.instrs <- new_instrs
+
   let append_last bc instr =
     bc.instrs <- bc.instrs @ [instr]
 

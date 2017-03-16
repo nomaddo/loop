@@ -11,14 +11,14 @@ let new_instr = Instr.new_instr
 
 let flag = ref false
 
-let constant_folding x y =
+let constant_folding x y f g =
   match x.opcore, y.opcore with
   | Iconst i, Iconst j ->
       assert (x.typ == y.typ);
-      new_operand ++ Iconst (i + j) ++ x.typ
+      new_operand ++ Iconst (f i j) ++ x.typ
   | Rconst s, Rconst t ->
       assert (x.typ == y.typ);
-      new_operand ++ Rconst (float_of_string s +. float_of_string t
+      new_operand ++ Rconst (g ++ float_of_string s ++ float_of_string t
                              |> string_of_float) ++ x.typ
   | _ -> assert false
 
@@ -45,7 +45,7 @@ let compare_op k op1 op2 =
     | Gt -> f > 0.
     | Eq -> f = 0.
     | Ne -> f != 0. in
-  let op = constant_folding op1 op2 in
+  let op = constant_folding op1 op2 (+) (+.) in
   match op.opcore with
   | Iconst i -> cmpi k i
   | Rconst s -> cmpr k s
@@ -69,7 +69,7 @@ let simplify_bc map bc =
         let op3_ = try_replace map op3 in
         let map = Map.remove op1 map in
         if Operand.is_constant op2_ && Operand.is_constant op3_ then
-          let op2 = constant_folding op2_ op3_ in
+          let op2 = constant_folding op2_ op3_ (+) (+.) in
           (map, new_instr ++ Mov (op1, op2) :: instrs)
         else
           let instr = new_instr ++ Add (op1, op2_, op3_) in
@@ -80,7 +80,7 @@ let simplify_bc map bc =
         let op3_ = try_replace map op3 in
         let map = Map.remove op1 map in
         if Operand.is_constant op2_ && Operand.is_constant op3_ then
-          let op2 = constant_folding op2_ op3_ in
+          let op2 = constant_folding op2_ op3_ (-) (-.) in
           (map, new_instr ++ Mov (op1, op2) :: instrs)
         else
           let instr = new_instr ++ Sub (op1, op2_, op3_) in
@@ -91,7 +91,7 @@ let simplify_bc map bc =
         let op3_ = try_replace map op3 in
         let map = Map.remove op1 map in
         if Operand.is_constant op2_ && Operand.is_constant op3_ then
-          let op2 = constant_folding op2_ op3_ in
+          let op2 = constant_folding op2_ op3_ ( * ) ( *. )in
           (map, new_instr ++ Mov (op1, op2)  :: instrs)
         else
           let instr = new_instr ++ Mul (op1, op2_, op3_) in
@@ -101,16 +101,18 @@ let simplify_bc map bc =
         let op3_ = try_replace map op3 in
         let map = Map.remove op1 map in
         if Operand.is_constant op2_ && Operand.is_constant op3_ then
-          let op2 = constant_folding op2_ op3_ in
+          let op2 = constant_folding op2_ op3_ (/) (/.) in
           (map, new_instr ++ Mov (op1, op2) :: instrs)
         else
           let instr = new_instr ++ Div (op1, op2_, op3_) in
           (map, instr :: instrs)
     | Mov (op1, op2) ->
+        let op2 = try_replace map op2 in
         if Operand.is_constant op2 then begin
         let map = Map.add op1 op2 map in
           (map, instrs) end
         else begin
+          let instr = new_instr ++ Mov (op1, op2) in
           let map = Map.add op1 op2 map in
           (map, instr :: instrs)
         end
