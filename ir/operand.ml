@@ -17,6 +17,7 @@ and operand_attr =
   | Tpath of Tident.path
   | Ind
   | Bct
+  | Arg of int
 [@@deriving show]
 
 let new_operand ?(attrs=[]) opcore typ =
@@ -41,4 +42,9 @@ let new_name ?(attrs=[]) tpath typ =
 
 let is_constant op = match op.opcore with
   | Iconst _ | Rconst _ -> true
+  | _ -> false
+
+let is_zero op =
+  match op.opcore with
+  | Iconst i -> i = 0
   | _ -> false

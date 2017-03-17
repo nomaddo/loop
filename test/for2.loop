@@ -1,0 +1,16 @@
+int f (int x)
+{
+  int y = x < x;
+  for a = 1 to x
+  {
+    int b = a * a;
+    int[x] c;
+    for d = 1 to x + x{
+      if (d == 0)
+      { return f (3); }
+    }
+    b = b + b;
+    return b;
+  }
+  return y;
+}

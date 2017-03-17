@@ -30,7 +30,13 @@ and dump_operand fmt op =
   | Rconst s -> Format.fprintf fmt "%s" s
   | Var    tpath -> Format.fprintf fmt "$%a(%a)"
         dump_tpath tpath dump_typ op.typ
-  | Tv     i -> Format.fprintf fmt "@%d(%a)" i dump_typ op.typ
+  | Tv     i -> begin
+      try
+        let Arg j = List.find (function Arg i -> true | _ -> false) op.attrs in
+        Format.fprintf fmt "@arg_%d(%d)(%a)" j i dump_typ op.typ
+      with Not_found ->
+        Format.fprintf fmt "@%d(%a)" i dump_typ op.typ
+    end
   | Sp       -> Format.fprintf fmt "sp"
   | Fp       -> Format.fprintf fmt "fp"
 

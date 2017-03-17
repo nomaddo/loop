@@ -1,0 +1,8 @@
+int (int) g = prim g;
+
+int f (int i, int j)
+{
+  i = i + j;
+  g (i) ;
+  return j;
+}
