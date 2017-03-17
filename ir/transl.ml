@@ -55,7 +55,7 @@ and transl_expr op e =
         new_operand (Rconst str) (transl_typ e.expr_typ) in
       [Instr.new_instr ++ Ir.Mov (op, operand)]
   | Aref (tpath, es) ->
-      let base = Operand.new_name tpath (transl_typ e.expr_typ) in
+      let base = Operand.new_var tpath (transl_typ e.expr_typ) in
       let size = Operand.new_tv (transl_typ e.expr_typ) in
       let instrs1, ops =
         List.fold_left (fun (acc, vars) e ->
@@ -163,14 +163,14 @@ let rec transl_decls parent bc dealloc decls =
           Hashtbl.add symbol_tbl tpath typ;
           let op = new_tv I4 in
           let instrs = typ_sizeof op typ in
-          let var = Operand.new_name tpath ++ transl_typ typ in
+          let var = Operand.new_var tpath ++ transl_typ typ in
           bc.instrs <- bc.instrs @ instrs @ [new_instr ++ Alloc (var, op)];
           transl_decls parent bc (Dealloc (var,op) :: dealloc) tl
       | Decl (typ, tpath, Some e) ->
           Hashtbl.add symbol_tbl tpath typ;
           let size_op = new_tv I4 in
           let alloc_instrs = typ_sizeof size_op typ in
-          let op = Operand.new_name tpath (transl_typ e.expr_typ) in
+          let op = Operand.new_var tpath (transl_typ e.expr_typ) in
           let tmp = Operand.new_tv (transl_typ e.expr_typ) in
           let instrs = transl_expr tmp e in
           bc.instrs <- bc.instrs @ alloc_instrs @ [new_instr ++ Alloc (op, size_op)]
@@ -214,7 +214,7 @@ let rec transl_decls parent bc dealloc decls =
           end
         end
       | Assign (tpath, e) ->
-          let var = new_operand (Operand.Var tpath) (transl_typ e.expr_typ) in
+          let var = Operand.new_var tpath (transl_typ e.expr_typ) in
           let op = new_tv (transl_typ e.expr_typ) in
           let instrs1 = transl_expr op e in
           let instrs2 =
@@ -231,7 +231,7 @@ let rec transl_decls parent bc dealloc decls =
           let result_op = new_tv ++ transl_typ e.expr_typ in
           let instrs3 = transl_expr result_op e in
           let instrs4 =
-            [new_instr ++ Str (Base_offset {base = Operand.new_name tpath ++ transl_typ (Tyenv.find_path !global_intf tpath); offset = retop}, result_op)] in
+            [new_instr ++ Str (Base_offset {base = Operand.new_var tpath ++ transl_typ (Tyenv.find_path !global_intf tpath); offset = retop}, result_op)] in
           bc.instrs <- bc.instrs @ instrs1 @ instrs2 @ instrs3 @ instrs4;
           transl_decls parent bc dealloc tl
       | For    (tpath, e1, dir, e2, eopt, ds) ->

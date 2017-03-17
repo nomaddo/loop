@@ -9,6 +9,10 @@ type opcore =
   | Fp                         (* frame pointer, ilbにのみ登場する *)
 [@@deriving show]
 
+(* operandを表すデータ構造
+   同じ変数は同じデータを共有しているためattrを買い換えると書き換わっちゃう
+
+   raではレジスタ情報を書き込む前にコピーしてから書き込む *)
 type operand =
   { opcore: opcore; typ: typ;
     mutable attrs: operand_attr list }
@@ -18,7 +22,10 @@ and operand_attr =
   | Ind
   | Bct
   | Arg of int
+  | Reg of reg (* 種類はstringで埋め込む *)
 [@@deriving show]
+
+and reg = {kind: string; num: int}
 
 let new_operand ?(attrs=[]) opcore typ =
   { opcore; typ; attrs }
@@ -32,13 +39,15 @@ let new_tv ?(attrs=[]) ?(opt=None) typ =
       attrs = attrs @ match opt with None -> []
                                    | Some tpath -> [Tpath tpath]}
 
-let new_var =
-  fun ?(attrs=[]) typ ->
-    let tpath = Tident.path ("_" ^ string_of_int (count ())) in
-    { opcore = Var tpath; typ; attrs; }
+let hash = Hashtbl.create 10
 
-let new_name ?(attrs=[]) tpath typ =
-  new_operand ~attrs (Var tpath) typ
+let new_var tpath typ =
+  try
+    Hashtbl.find hash tpath
+  with Not_found ->
+    let op = new_operand (Var tpath) typ in
+    Hashtbl.add hash tpath op;
+    op
 
 let is_constant op = match op.opcore with
   | Iconst _ | Rconst _ -> true
@@ -48,3 +57,23 @@ let is_zero op =
   match op.opcore with
   | Iconst i -> i = 0
   | _ -> false
+
+let copy op =
+  { opcore = op.opcore;
+    typ = op.typ;
+    attrs = List.map (fun x -> x) op.attrs }
+
+let get_reg instr =
+  let regs = List.filter
+      (function Reg {kind; num} -> true | _ -> false) instr.attrs in
+  match regs with
+  | [Reg x] -> x
+  | _ -> failwith "get_reg"
+
+let is_marked instr =
+  let regs = List.filter
+      (function Reg {kind; num} -> true | _ -> false) instr.attrs in
+  match regs with
+  | [] -> false
+  | [x] -> true
+  | _ -> failwith "is_marked"

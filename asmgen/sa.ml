@@ -22,15 +22,19 @@ let rec delete e l =
 (* operand list受け取って、定数を加算してi, それ以外はxに入れてしまう *)
 let sum l =
   let open Operand in
+  Format.printf "sum: @.";
+  List.iter (Format.printf "%a " Ilb_dump.dump_operand) l;
+  Format.printf "@.sum end: @.";
   let x = ref [] in
   let i = List.fold_left (fun acc op -> match op.opcore with
       | Iconst i -> acc + i
       | Tv _ -> x := op :: !x; acc
       | _ -> acc) 0 l in
+  Format.printf "sum: keisan %d@." i;
   (!x, i)
 
-let split f l =
-  let rec split acc f = function
+let split (f: Operand.operand * Operand.operand -> bool) l =
+  let rec split acc (f: Operand.operand * Operand.operand -> bool) = function
   | x :: xs ->
       if f x
       then (List.rev (x :: acc), xs)
@@ -46,14 +50,24 @@ let rec add_chain op = function
 let replace_index l op index_mode f =
   match index_mode with
   | Base_offset {base; offset} -> begin
-      let _, b = split (fun (a, b) -> a = base) l
+      Format.printf "base = %a@." Ilb_dump.dump_operand base;
+      let _, b = split (fun (a, b) ->
+          Format.printf "%a %a@." Ilb_dump.dump_operand a Ilb_dump.dump_operand b;
+          a = base) l
                  |> snd |> List.split in
       let ops, i = sum b in
       let tv = Operand.new_tv Typ.I4 in
       let instrs = add_chain tv ops in
       if instrs = [] then
-        [Ldr (op, Base_offset {base = frame_pointer; offset})
-         |> Instr.new_instr]
+        if Operand.is_zero offset then
+          [Ldr (op, Base_offset {base = frame_pointer;
+                                 offset = Operand.new_operand (Operand.Iconst i) Typ.I4})
+           |> Instr.new_instr]
+        else
+          [Add (tv, Operand.new_operand (Operand.Iconst i) Typ.I4, offset)
+           |> Instr.new_instr;
+           Ldr (op, Base_offset {base = frame_pointer; offset = tv})
+           |> Instr.new_instr]
       else
         [Mov (tv, Operand.new_operand (Operand.Iconst i) Typ.I4) |> Instr.new_instr] @
           instrs @

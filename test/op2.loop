@@ -5,6 +5,5 @@ int sub (int a)
   int[10] hoge;
   int x;
   int y;
-  f (hoge[0] + hoge[1] + hoge[2] + hoge[3]);
-  return (y);
+  return (x + y + hoge[1]);
 }

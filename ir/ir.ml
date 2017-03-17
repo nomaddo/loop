@@ -59,7 +59,7 @@ and 'a instr = {
 }
 
 and instr_attr =
-  | Vars of {mutable ops: Operand.opcore list}
+  | Vars of Operand.operand Set.Map.t
 
 and 'a loop_info = {
   id: int;
@@ -142,10 +142,11 @@ module Instr = struct
     bc.instrs <- new_instrs
 
   let replace_instrs bc old news =
-    let new_instrs =
-      List.fold_left (fun acc x ->
-        if x == old then news @ acc else x :: acc) [] bc.instrs
-      |> List.rev in
+    let rec f = function
+      | x :: xs ->
+          if x = old then news @ xs else x :: f xs
+      | [] -> news in
+    let new_instrs = f bc.instrs in
     bc.instrs <- new_instrs
 
   let append_last bc instr =
