@@ -5,5 +5,5 @@ int f (int i)
   if (i)
   { return 1;}
   else
-  { int a = 1 + 2; }
+  { int a = 1 + 2; return a; }
 }

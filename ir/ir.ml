@@ -189,6 +189,10 @@ module Bc = struct
   let concat_bc p n =
     p.next <- Some n
 
+  let shrink x y =
+    x.instrs <- x.instrs @ y.instrs;
+    x.succs <- y.succs;
+    x.next <- y.next;
 end
 
 module Loop_info = struct

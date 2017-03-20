@@ -337,12 +337,54 @@ let transl_args args =
   List.map (fun (tpath, typ) ->
     new_operand (Var tpath) (transl_typ typ)) args
 
+let check_ret bc =
+  match bc.next with
+  | Some _ -> ()
+  | None -> begin               (* nextがないときにretがないと駄目 *)
+      let flag = ref false in
+      List.iter (fun instr -> match instr.instr_core with
+        | Ret _ -> flag := true
+        | _ -> ()) bc.instrs;
+      if !flag then () else begin
+        Format.printf "%a@." Dump.dump_bc bc;
+        failwith "there exist path not to include Ret"
+      end
+    end
+
 let transl_toplevel (f,g,m) bc mod_name = function
   | Typed_ast.Fundef (typ, tpath, args, decls) ->
+      let flag = ref true in
+      let shrink_route bc =
+        if List.length bc.succs = 1 then
+          let [x] = bc.succs in
+          if List.length x.succs = 1 && List.length x.preds = 1 then begin
+            flag := true;
+            Bc.shrink bc x
+          end in
+      let shrink_empty bc =
+        if bc.instrs = [] then begin
+          List.iter (fun bc' ->
+            match bc'.next with
+            | Some next ->
+                if next.id = bc.id then begin
+                  Format.printf "shrink_empty: %d and %d@." bc.id bc'.id;
+                  flag := true;
+                  bc'.next <- None
+                end
+            | None -> ()) bc.preds;
+        end in
+
       let total = Loop_info.total_loop () in
       let entry = Bc.new_bc total in
       transl_decls total entry [] decls |> ignore;
       Ir_util.set_control_flow entry;
+      while !flag do
+        flag := false;
+        Ir_util.iter 500 shrink_route entry;
+        Ir_util.iter 600 shrink_empty entry;
+        Ir_util.set_control_flow entry;
+      done;
+      Ir_util.iter 400 check_ret entry;
       let func =
         { label_name = Tident.make_label mod_name tpath;
           args = transl_args args;
