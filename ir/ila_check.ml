@@ -94,8 +94,7 @@ and check_instr ~last instr = match instr.instr_core with
         Format.printf "check_instr: mismatch@. %a, and %a@."
           Dump.dump_operand op3 Dump.dump_operand op4;
         failwith "check_instr: type mismatch conditional mv2" end
-  | Call  (tpath , ops) -> List.iter check_operand ops
-  | Callm (op, tpath, ops) -> List.iter check_operand ops
+  | Call  (opt, tpath , ops) -> List.iter check_operand ops
   | Ret   op -> check_operand op
   | Alloc (op1, op2) ->
       check_operand op1; check_operand op2;

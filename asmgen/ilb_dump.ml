@@ -100,10 +100,15 @@ and dump_ilb fmt instr =
         | Le -> "mle" | Lt -> "mlt" | Ge -> "mge"
         | Gt -> "mgt" | Eq -> "meq" | Ne -> "mne" in
       Format.fprintf fmt "%s %a, %a@." msg d x d y
-  | Callm (x, tpath, ops) -> Format.fprintf fmt "callm %a %a, %a@." d x
-        dump_tpath tpath  (fun fmt l -> List.iter (d fmt) l) ops
-  | Call (tpath, ops) -> Format.fprintf fmt "call %a, %a@." dump_tpath tpath
-        (fun fmt l -> List.iter (d fmt) l) ops
+  | Call (opt, tpath, ops) ->
+      begin match opt with
+      | None ->
+        Format.fprintf fmt "call %a, %a@." dump_tpath tpath
+          (fun fmt l -> List.iter (d fmt) l) ops
+      | Some op ->
+        Format.fprintf fmt "call %a, %a, %a@." d op dump_tpath tpath
+          (fun fmt l -> List.iter (d fmt) l) ops
+      end
   | Ret x -> Format.fprintf fmt "ret %a@." d x
   | Alloc (x, y) -> Format.fprintf fmt "alloc %a, %a@." d x d y
   | Dealloc (x, y) -> Format.fprintf fmt "dealloc %a, %a@." d x d y

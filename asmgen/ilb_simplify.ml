@@ -153,14 +153,9 @@ let simplify_bc map bc =
         else
           let map = Map.remove op1 map in
           (map, instr :: instrs)
-    | Call  (tpath , ops) ->
+    | Call  (opt, tpath , ops) ->
         let instr =
-          new_instr ++ Call (tpath, List.map (try_replace map) ops) in
-        (map, instr :: instrs)
-    | Callm (op , tpath , ops) ->
-        let map = Map.remove op map in
-        let instr =
-          new_instr ++ Callm (op, tpath, List.map (try_replace map) ops) in
+          new_instr ++ Call (opt, tpath, List.map (try_replace map) ops) in
         (map, instr :: instrs)
     | Ret op ->
         let instr =

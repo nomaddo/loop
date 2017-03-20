@@ -73,7 +73,7 @@ and transl_expr op e =
             | None ->
                 let ops = List.map (fun e -> Operand.new_tv (transl_typ e.expr_typ)) es in
                 List.fold_left2 (fun  l op e -> transl_expr op e @ l) [] ops es
-                @ [new_instr ++ Callm (op, tpath, ops)]
+                @ [new_instr ++ Ir.Call (Some op, tpath, ops)]
             | Some s ->
                 transl_prim es op op.typ s
           end
@@ -174,7 +174,7 @@ let rec transl_decls parent bc dealloc decls =
           let tmp = Operand.new_tv (transl_typ e.expr_typ) in
           let instrs = transl_expr tmp e in
           bc.instrs <- bc.instrs @ alloc_instrs @ [new_instr ++ Alloc (op, size_op)]
-            @ instrs @ [new_instr ++ Str (Base_offset {base=op; offset=zero}, tmp)];
+            @ instrs @ [new_instr ++ Str (Base_offset {base=new_var tpath ++ transl_typ typ; offset=zero}, tmp)];
           transl_decls parent bc (Dealloc (op, size_op) :: dealloc) tl
       | If (cond, d, dopt) -> begin
           let op = new_tv I4 in
@@ -314,7 +314,7 @@ let rec transl_decls parent bc dealloc decls =
                 let ops = List.map (fun e -> Operand.new_tv (transl_typ e.expr_typ)) es in
                 let instrs =
                   List.fold_left2 (fun  l op e -> transl_expr op e @ l) [] ops es
-                  @ [new_instr ++ Ir.Call (tpath, ops)] in
+                  @ [new_instr ++ Ir.Call (None, tpath, ops)] in
                 bc.instrs <- bc.instrs @ instrs;
             | Some s ->
                 let op = new_tv I4 in

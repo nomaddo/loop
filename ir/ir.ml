@@ -44,8 +44,8 @@ and ila =
   | Mov    of operand * operand
   | Branch of br_kind * operand * operand * ila basic_block
   | Bmov   of br_kind * operand * operand * operand * operand
-  | Call   of Tident.path * operand list
-  | Callm  of operand * Tident.path * operand list
+  (* 返り値を捨てる場合には第一operandがNoneになる *)
+  | Call   of operand option * Tident.path * operand list
   | Ret    of operand
   | Alloc  of operand * operand
   | Dealloc of operand * operand

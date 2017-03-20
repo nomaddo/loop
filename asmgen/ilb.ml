@@ -18,8 +18,7 @@ type ilb =
 
   (* 疑似命令 *)
   | Conv   of operand * operand (* 命令と一対一対応なので最後までこの形 *)
-  | Call   of Tident.path * operand list
-  | Callm  of operand * Tident.path * operand list
+  | Call   of operand option * Tident.path * operand list
   | Alloc  of operand * operand
   | Dealloc  of operand * operand
 
