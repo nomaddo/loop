@@ -105,10 +105,13 @@ and type_decl intf rettyp decl =
           intf, Call (tpath, es, ret)
       | _ -> failwith ((Pident.show_path ppath) ^ " is not function")
       end
-  | Ast.Return e ->
+  | Ast.Return None ->
+      assert_typ rettyp Void;
+      intf, Return None
+  | Ast.Return (Some e) ->
       let e = type_expr intf e in
       assert_typ rettyp e.expr_typ;
-      intf, Return e
+      intf, Return (Some e)
 
 (*  *)
 and assert_astore typ es =

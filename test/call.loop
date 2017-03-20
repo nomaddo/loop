@@ -1,0 +1,7 @@
+int(int) succ = prim succ;
+
+void main()
+{
+  int i = succ(12);
+  succ(3);
+}

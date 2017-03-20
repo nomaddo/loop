@@ -12,11 +12,11 @@ type ilb =
   | Cmp    of operand * operand
   | Branch of Ir.br_kind * ilb Ir.basic_block
   | Bmov   of Ir.br_kind * operand * operand
-  | Ret    of operand
   | Bl     of Tident.path
   | B      of Tident.path
 
   (* 疑似命令 *)
+  | Ret    of operand option
   | Conv   of operand * operand (* 命令と一対一対応なので最後までこの形 *)
   | Call   of operand option * Tident.path * operand list
   | Alloc  of operand * operand

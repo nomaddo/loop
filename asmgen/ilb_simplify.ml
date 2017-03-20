@@ -157,9 +157,11 @@ let simplify_bc map bc =
         let instr =
           new_instr ++ Call (opt, tpath, List.map (try_replace map) ops) in
         (map, instr :: instrs)
-    | Ret op ->
+    | Ret (Some op) ->
         let instr =
-          new_instr ++ Ret (try_replace map op) in
+          new_instr ++ Ret (Some (try_replace map op)) in
+         (map, instr :: instrs)
+    | Ret None ->
         (map, instr :: instrs)
     | Alloc (op1, op2) ->
         let instr =

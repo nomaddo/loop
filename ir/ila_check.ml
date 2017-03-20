@@ -95,7 +95,8 @@ and check_instr ~last instr = match instr.instr_core with
           Dump.dump_operand op3 Dump.dump_operand op4;
         failwith "check_instr: type mismatch conditional mv2" end
   | Call  (opt, tpath , ops) -> List.iter check_operand ops
-  | Ret   op -> check_operand op
+  | Ret (Some op) -> check_operand op
+  | Ret None -> ()
   | Alloc (op1, op2) ->
       check_operand op1; check_operand op2;
       if op2.typ != addr_size_op.typ then begin

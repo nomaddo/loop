@@ -322,11 +322,14 @@ let rec transl_decls parent bc dealloc decls =
                 bc.instrs <- bc.instrs @ instrs;
           end;
           transl_decls parent bc dealloc tl
-      | Return e                              ->
+      | Return None ->
+          bc.instrs <- bc.instrs @ [new_instr (Ret None)];
+          bc, []
+      | Return (Some e) ->
           let op = new_tv ++ transl_typ e.expr_typ in
           let instrs = transl_expr op e in
           bc.instrs <- bc.instrs @ instrs @ List.map new_instr dealloc
-            @ [new_instr (Ret op)];
+            @ [new_instr (Ret (Some op))];
           bc, []
     end
 

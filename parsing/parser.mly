@@ -115,8 +115,8 @@ astore_decl:
   { Astore ($1, $2, $4) }
 
 return_decl:
-| RETURN expr { Return $2 }
-| RETURN LPAREN expr RPAREN { Return $3 }
+| RETURN      { Return None }
+| RETURN expr { Return (Some $2) }
 
 direction:
 | TO { To }

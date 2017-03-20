@@ -103,6 +103,7 @@ and dump_ila fmt instr =
         Format.fprintf fmt "call %a, %a, %a@." d op dump_tpath tpath
           (fun fmt l -> List.iter (d fmt) l) ops
       end
-  | Ret x -> Format.fprintf fmt "ret %a@." d x
+  | Ret (Some x) -> Format.fprintf fmt "ret %a@." d x
+  | Ret None     -> Format.fprintf fmt "ret@."
   | Alloc (x, y) -> Format.fprintf fmt "alloc %a, %a@." d x d y
   | Dealloc (x, y) -> Format.fprintf fmt "dealloc %a, %a@." d x d y

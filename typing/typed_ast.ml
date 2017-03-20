@@ -27,7 +27,7 @@ type  decl =
   | For    of Tident.path *  expr * direction *  expr *  expr option *  decl list
   | While  of expr *  decl list
   | Call   of Tident.path *  expr list * typ
-  | Return of expr
+  | Return of expr option
 [@@deriving show]
 
 type  top_decl =

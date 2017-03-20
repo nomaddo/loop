@@ -46,7 +46,7 @@ and ila =
   | Bmov   of br_kind * operand * operand * operand * operand
   (* 返り値を捨てる場合には第一operandがNoneになる *)
   | Call   of operand option * Tident.path * operand list
-  | Ret    of operand
+  | Ret    of operand option
   | Alloc  of operand * operand
   | Dealloc of operand * operand
 
