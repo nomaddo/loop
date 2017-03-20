@@ -1,3 +1,8 @@
+<<<<<<< variant A
+>>>>>>> variant B
+./asmgen/arm7l/ilb.cmo :
+./asmgen/arm7l/ilb.cmx :
+======= end
 ./asmgen/asmgen.cmo :
 ./asmgen/asmgen.cmx :
 ./asmgen/code_out.cmo :
