@@ -59,7 +59,7 @@ and 'a instr = {
 }
 
 and instr_attr =
-  | Vars of Operand.operand Set.Map.t
+  | Vars of Operand.operand Set.t
 
 and 'a loop_info = {
   id: int;
@@ -113,7 +113,7 @@ and memory = {
   name  : Tident.path;
   shape : int
 }
-[@@deriving show]
+
 
 let true_op = new_operand (Iconst 1) I4
 let false_op = new_operand (Iconst 0) I4
