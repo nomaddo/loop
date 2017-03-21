@@ -74,7 +74,6 @@ let replace_index l op index_mode f =
           [Add (tv, tv, offset) |> Instr.new_instr] @
           [f op (Base_offset {base = frame_pointer; offset = tv}) ]
     end
-  | _ -> assert false
 
 let calc_ldr l op index_mode =
   replace_index l op index_mode (fun op index -> Ldr (op, index) |> Instr.new_instr)
@@ -90,7 +89,6 @@ let mark_arg args index_mode =
           | Some i ->
               base.Operand.attrs <- Operand.Arg i :: base.attrs
         end
-    | Operand _ -> failwith "alloc_bc"
   end
 
 let alloc_bc (l, args) bc =
@@ -127,7 +125,6 @@ let arg_to_tv_bc map bc =
                     (Instr.new_instr (Ldr(op, Base_offset {base = tv; offset})))
                 with Not_found -> ()
               end
-          | Operand _ -> failwith "arg_to_tv"
         end
     | Str (index_mode, op) ->
         begin match index_mode with
@@ -141,7 +138,6 @@ let arg_to_tv_bc map bc =
                     (Instr.new_instr (Str (Base_offset {base = tv; offset}, op)))
                 with Not_found -> ()
               end
-          | Operand _ -> failwith "arg_to_tv"
         end
     | _ -> ()) bc.instrs; map
 

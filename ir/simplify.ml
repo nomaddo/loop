@@ -59,7 +59,6 @@ let simplify_index map index_mode =
   match index_mode with
   | Base_offset { base;  offset; } ->
       Base_offset  { base;  offset = try_replace map offset; }
-  | Operand op -> Operand op
 
 let simplify_bc map bc =
   List.fold_left (fun (map, instrs) instr ->

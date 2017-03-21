@@ -58,7 +58,6 @@ let simplify_index map index_mode =
   match index_mode with
   | Base_offset { base;  offset; } ->
       Base_offset  { base;  offset = try_replace map offset; }
-  | Operand op -> Operand op
 
 let optimize_constant map op1 op2 op3 f g =
   if Operand.is_constant op2 && Operand.is_constant op3 then

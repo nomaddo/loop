@@ -31,7 +31,6 @@ and basic_block_attr =
 
 and index_mode =
   | Base_offset of { base: operand; offset: operand }
-  | Operand     of operand
 
 and ila =
   | Add    of operand * operand * operand
@@ -40,15 +39,15 @@ and ila =
   | Div    of operand * operand * operand
   | Str    of index_mode * operand
   | Ld     of operand * index_mode
-  | Conv   of operand * operand
+  | Conv   of operand * operand (* 型変換 *)
   | Mov    of operand * operand
   | Branch of br_kind * operand * operand * ila basic_block
   | Bmov   of br_kind * operand * operand * operand * operand
   (* 返り値を捨てる場合には第一operandがNoneになる *)
   | Call   of operand option * Tident.path * operand list
   | Ret    of operand option
-  | Alloc  of operand * operand
-  | Dealloc of operand * operand
+  | Alloc  of operand * operand  (* スタックの確保 *)
+  | Dealloc of operand * operand (* スタックの解放 *)
 
 and br_kind =
   | Le | Lt | Ge | Gt | Eq | Ne

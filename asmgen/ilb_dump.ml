@@ -75,8 +75,6 @@ and dump_bc_loop_info fmt bc =
 and dump_index_mode fmt = function
   | Base_offset {base; offset} ->
       Format.fprintf fmt "{%a + %a}" dump_operand base dump_operand offset
-  | Operand op ->
-      Format.fprintf fmt "%a" dump_operand op
 
 and dump_ilb fmt instr =
   let d = dump_operand in

@@ -6,6 +6,8 @@
 ./asmgen/ilb.cmx :
 ./asmgen/ilb_dump.cmo :
 ./asmgen/ilb_dump.cmx :
+./asmgen/ilb_simplify.cmo :
+./asmgen/ilb_simplify.cmx :
 ./asmgen/ilb_util.cmo :
 ./asmgen/ilb_util.cmx :
 ./asmgen/ra.cmo :

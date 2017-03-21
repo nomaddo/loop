@@ -57,7 +57,6 @@ and check_instr ~last instr = match instr.instr_core with
             Format.printf "check_instr: %a is expected %a"
               Dump.dump_operand base Dump.dump_typ addr_size_op.typ;
             failwith "check_instr: type mismatch memory" end
-      | Operand op -> failwith "check_instr: should not appear here"
       end
   | Conv  (op1 , op2) -> check_operand op1; check_operand op2
   | Mov   (op1 , op2) ->
