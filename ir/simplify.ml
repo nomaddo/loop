@@ -45,14 +45,16 @@ let compare_op k op1 op2 =
     | Gt -> f > 0.
     | Eq -> f = 0.
     | Ne -> f != 0. in
-  let op = constant_folding op1 op2 (+) (+.) in
+  let op = constant_folding op2 op1 (-) (-.) in
   match op.opcore with
   | Iconst i -> cmpi k i
   | Rconst s -> cmpr k s
   | _ -> failwith "compare_op"
 
-let shrink k op1 op2 bc dist =
+let shrink k op1 op2 (bc: 'a basic_block) (dist: 'a basic_block) =
   if compare_op k op1 op2 then
+    Etc.dmsg Flags.dflag (fun () ->
+      Format.printf "shrink: %d 's next is %d@." bc.id dist.id);
     bc.next <- Some dist
 
 let simplify_index map index_mode =

@@ -6,17 +6,15 @@ int main (int i, int j)
 {
   int x = 2000;
 
-  if (x / 2 == 0)
-  {
-    x = x + 100;
-  }
   while (1)
   {
-    while (x / 2 == 0)
+    while (x / 4 == 0)
     {
        print (x);
     }
 
     print (a);
   }
+
+  return x;
 }
