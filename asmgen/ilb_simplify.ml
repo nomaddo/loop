@@ -1,5 +1,6 @@
 (* 定数のmovの除去
-
+   TODO:
+   - cmpの共通式
 *)
 
 open Batteries
@@ -147,11 +148,7 @@ let simplify_bc map bc =
     | Branch (k, dist) ->
         (map, instr :: instrs)
     | Bmov (k, op1 , op2) ->
-        if op1 = op2
-        then (map, instrs)
-        else
-          let map = Map.remove op1 map in
-          (map, instr :: instrs)
+        (map, instr :: instrs)
     | Call  (opt, tpath , ops) ->
         let instr =
           new_instr ++ Call (opt, tpath, List.map (try_replace map) ops) in

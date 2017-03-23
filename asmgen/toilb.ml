@@ -22,7 +22,7 @@ let transl_instr hash memories instr =
   | Mov    (op1, op2)              -> [Ilb.Mov (op1, op2)]
   | Branch (k, op1, op2, bc)       -> [Ilb.Cmp (op1, op2);
                                        Ilb.Branch (k, access_with_int hash bc)]
-  | Bmov   (k, op1, op2, op3, op4) -> [Ilb.Cmp (op1, op2); Ilb.Bmov (k, op3, op4)]
+  | Bmov   (k, op1, op2, op3, op4) -> [Ilb.Cmp (op3, op4); Ilb.Bmov (k, op1, op2)]
   | Call   (opt, tpath , ops)      -> [Ilb.Call (opt, tpath , ops)]
   | Ret    op                      -> [Ilb.Ret op]
   | Alloc  (op1, op2)              -> [Ilb.Alloc  (op1, op2)]

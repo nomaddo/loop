@@ -42,6 +42,8 @@ and ila =
   | Conv   of operand * operand (* 型変換 *)
   | Mov    of operand * operand
   | Branch of br_kind * operand * operand * ila basic_block
+
+  (* op1: 代入先, op2: 代入する値, op3/op4 比較するオペランド*)
   | Bmov   of br_kind * operand * operand * operand * operand
   (* 返り値を捨てる場合には第一operandがNoneになる *)
   | Call   of operand option * Tident.path * operand list
