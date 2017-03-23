@@ -275,6 +275,13 @@ let mark_instr set instr =
     end
 
 let remove_instr bc instr =
+  let should_remove op set =
+    let open Operand in
+    match op.opcore with
+    | Fp | Sp -> false
+    | Tv _ | Var _ -> not (Set.mem op set)
+    | Iconst _ | Rconst _ -> true in
+
   let f bc instr op =
       begin match Instr.next bc instr with
       | None -> ()
@@ -282,7 +289,7 @@ let remove_instr bc instr =
           match Instr.find_vars instr_ with
           | None -> ()
           | Some set ->
-              if Set.mem op set then () else begin
+              if should_remove op set then begin
                 Format.printf "remove_instr: %a"Ilb_dump.dump_ilb instr;
                 Instr.delete bc instr
               end
