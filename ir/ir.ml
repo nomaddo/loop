@@ -113,9 +113,15 @@ and memory = {
   shape : int
 }
 
-
 let true_op = new_operand (Iconst 1) I4
 let false_op = new_operand (Iconst 0) I4
+
+let list_remove f l =
+  let rec rec_f f l = match l with
+    | x :: xs ->
+        if f x then xs else x :: rec_f f xs
+    | [] -> [] in
+  rec_f f l
 
 module Instr = struct
   type t = ila instr
@@ -177,6 +183,24 @@ module Instr = struct
   let include_ret bc =
     try ignore (List.find is_ret bc.instrs); true
     with Not_found -> false
+
+  let find_vars instr =
+    try
+      let Vars set =
+        List.find (function Vars set -> true
+                          | _ -> false) instr.instr_attrs in
+      Some set
+    with  _ -> None
+
+  let next bc instr =
+    let rec search = function
+      | x :: y :: xs ->
+          if x == instr then Some y else search (y :: xs)
+      | _ :: [] | [] -> None in
+    search bc.instrs
+
+  let remove_attr f instr =
+    instr.instr_attrs <- list_remove f instr.instr_attrs
 end
 
 module Bc = struct

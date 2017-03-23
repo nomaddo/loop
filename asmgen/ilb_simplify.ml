@@ -179,7 +179,7 @@ let dump_map map =
   Map.foldi (fun k v () -> Format.printf "%a -> %a@." Dump.dump_operand k Dump.dump_operand v) map ();
   Format.printf "dump_map: end@."
 
-let func {Ir.entry} =
+let remove_constant_move {Ir.entry} =
   flag_off flag;
   let map = Map.empty in
   let map = Ir_util.fold (entry.traverse_attr + 1) (fun map bc ->
@@ -188,3 +188,134 @@ let func {Ir.entry} =
   ignore map;
   (* dump_map map; *)
   !flag
+
+let add op set =
+  match op.Operand.opcore with
+  | Operand.Iconst _ -> set
+  | Operand.Rconst _ -> set
+  | Operand.Tv    _  -> Set.add op set
+  | Operand.Fp       -> set
+  | Operand.Sp       -> set
+  | Operand.Var _    -> set
+
+let mark_instr set instr =
+  match instr.instr_core with
+  | Add     (op1, op2, op3)   ->
+      let set = add op2 set
+                |> add op3
+                |> Set.remove op1 in
+      Instr.remove_attr (function Vars _ -> true) instr;
+      instr.instr_attrs <- Ir.Vars set :: instr.instr_attrs;
+      set
+  | Sub     (op1, op2, op3)   ->
+      let set = add op2 set in
+      let set = add op3 set in
+      let set = Set.remove op1 set in
+      instr.instr_attrs <- Ir.Vars set :: instr.instr_attrs;
+      set
+  | Mul     (op1, op2, op3)   ->
+      let set = add op2 set in
+      let set = add op3 set in
+      let set = Set.remove op1 set in
+      instr.instr_attrs <- Ir.Vars set :: instr.instr_attrs;
+      set
+  | Div     (op1, op2, op3)   ->
+      let set = add op2 set in
+      let set = add op3 set in
+      let set = Set.remove op1 set in
+      instr.instr_attrs <- Ir.Vars set :: instr.instr_attrs;
+      set
+  | Str     (index_mode, op)  ->
+      let set = add op set in
+      begin match index_mode with
+        | Ir.Base_offset {base; offset} ->
+            let set = add offset set in
+            instr.instr_attrs <- Ir.Vars set :: instr.instr_attrs;
+            set
+      end
+  | Ldr     (op, index_mode)  ->
+      begin match index_mode with
+        | Ir.Base_offset {base; offset} ->
+            let set = add offset set in
+            instr.instr_attrs <- Ir.Vars set :: instr.instr_attrs;
+            set
+      end
+  | Mov     (op1, op2)        ->
+      let set = add op2 set in
+      instr.instr_attrs <- Ir.Vars set :: instr.instr_attrs;
+      set
+  | Cmp     (op1, op2)        ->
+      let set = add op1 set |> add op2 in
+      instr.instr_attrs <- Ir.Vars set :: instr.instr_attrs;
+      set
+  | Branch  (kind, bc)        -> set
+  | Bmov    (kind, op1 , op2) ->
+      let set = add op2 set in
+      instr.instr_attrs <- Ir.Vars set :: instr.instr_attrs;
+      set
+  | Ret     op                ->
+      begin match op with
+        | None -> set
+        | Some op ->
+            let set = add op set in
+            instr.instr_attrs <- Ir.Vars set :: instr.instr_attrs;
+            set
+      end
+  | Conv    (op1, op2)        ->
+      let set = add op2 set in
+      instr.instr_attrs <- Ir.Vars set :: instr.instr_attrs;
+      set
+  | Call    (opt, tpath, ops)      ->
+      let set = List.fold_left (fun set op -> add op set) set ops in
+      instr.instr_attrs <- Ir.Vars set :: instr.instr_attrs;
+      set
+  | _ -> begin
+      Format.printf "invalid instr: %a@." Ilb_dump.dump_ilb instr;
+      assert false
+    end
+
+let remove_instr bc instr =
+  let f bc instr op =
+      begin match Instr.next bc instr with
+      | None -> ()
+      | Some instr_ ->
+          match Instr.find_vars instr_ with
+          | None -> ()
+          | Some set ->
+              if Set.mem op set then () else begin
+                Format.printf "remove_instr: %a"Ilb_dump.dump_ilb instr;
+                Instr.delete bc instr
+              end
+      end in
+  match instr.instr_core with
+  | Add (op1, op2, op3) -> f bc instr op1
+  | Sub (op1, op2, op3) -> f bc instr op1
+  | Mul (op1, op2, op3) -> f bc instr op1
+  | Div (op1, op2, op3) -> f bc instr op1
+  | Str (index_mode, op) -> ()
+  | Ldr (op, index_mode) -> f bc instr op
+  | Mov (op1, op2) -> f bc instr op1
+  | Cmp (op1, op2) -> ()
+  | Branch (k, bc) -> ()
+  | Bmov (k, op1, op2) -> f bc instr op1
+  | Bl tpath | B tpath -> ()
+  | Ret opopt -> ()
+  | Conv (op1, op2) -> f bc instr op1
+  | Call (opt, tpath, ops) -> ()
+  | Alloc (op1, op2)
+  | Dealloc (op1, op2) -> ()
+
+let remove_redundant_instr {label_name; args; entry} =
+  let rec set_sets set bc =
+    if bc.traverse_attr = 700 then set else begin
+      bc.traverse_attr <- 700;
+      match bc.next with
+      | None -> List.fold_left mark_instr set (List.rev bc.instrs)
+      | Some _ ->
+          List.map (set_sets set) bc.succs
+          |> List.fold_left (fun acc set -> Set.union acc set) set
+    end
+  in
+  set_sets Set.empty entry |> ignore;
+  Ir_util.iter 701 (fun bc ->
+    List.iter (remove_instr bc) bc.instrs) entry

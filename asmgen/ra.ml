@@ -1,64 +1,19 @@
-(* (\* register allocation *)
-(*    tvの属性にレジスタ割付した結果を書き込む *)
-(*    call, callmをb, blに変える *)
-(* *\) *)
+(* register allocation
+   tvの属性にレジスタ割付した結果を書き込む
+   call, callmをb, blに変える
+*)
 
-(* open Batteries *)
-(* open Etc *)
-(* open Ir *)
-(* open Ilb *)
+open Batteries
+open Etc
+open Ir
+open Ilb
 
-(* let copy = Operand.copy *)
-(* let is_marked = Operand.is_marked *)
-(* let is_constant = Operand.is_constant *)
-
-(* let mark_instr set instr = *)
-(*   match instr.instr_core with *)
-(*   | Add     (op1, op2, op3)   -> *)
-(*       let set = Set.add op2 set *)
-(*                 |> Set.add op3 *)
-(*                 |> Set.remove op1 in *)
-(*       instr.instr_attrs <- Ir.Vars set :: instr.instr_attrs *)
-(*   | Sub     (op1, op2, op3)   -> *)
-(*       let set = Set.add op2 set in *)
-(*       let set = Set.add op3 set in *)
-(*       instr.instr_attrs <- Ir.Vars set :: instr.instr_attrs *)
-(*   | Mul     (op1, op2, op3)   -> *)
-(*       let set = Set.add op2 set in *)
-(*       let set = Set.add op3 set in *)
-(*       instr.instr_attrs <- Ir.Vars set :: instr.instr_attrs *)
-(*   | Div     (op1, op2, op3)   -> *)
-(*       let set = Set.add op2 set in *)
-(*       let set = Set.add op3 set in *)
-(*       instr.instr_attrs <- Ir.Vars set :: instr.instr_attrs *)
-(*   | Str     (index_mode, op)  -> *)
-(*       let set = Set.add op2 set in *)
-(*       let set = Set.add op3 set in *)
-(*       instr.instr_attrs <- Ir.Vars set :: instr.instr_attrs *)
-
-(*   | Ldr     (op, index_mode)  -> *)
-(*   | Mov     (op1, op2)        -> *)
-(*   | Cmp     (op1, op2)        -> *)
-(*   | Branch  (kind, bc)        -> *)
-(*   | Bmov    (kind, op1 , op2) -> *)
-(*   | Ret     op                -> *)
-(*       let set = Set.add op set in *)
-(*       instr.instr_attrs <- Ir.Vars set :: instr.instr_attrs *)
-(*   | Conv    (op1, op2)        -> *)
-(*   | Call    (tpath, ops)      -> *)
-(*   | Callm   (op, tpath, ops)  -> *)
-(*   | _ -> begin *)
-(*       Format.printf "invalid instr: %a@." Ilb_dump.dump_ilb instr; *)
-(*       assert false *)
-(*     end *)
-
-(* let transl_func memories {label_name; args; entry} = *)
-(*   Ir_util.fold 300 (fun acc bc -> *)
-(*     bc.instrs *)
+let copy = Operand.copy
+let is_marked = Operand.is_marked
+let is_constant = Operand.is_constant
 
 
-(*   ) *)
 
-(* let transl {Ir.memories; funcs} = *)
-(*   let funcs = List.map (transl_funcs memories) funcs in *)
-(*   { memories; funcs } *)
+let transl {Ir.memories; funcs} =
+  List.iter (fun func -> transl_func memories func |> ignore) funcs;
+  { memories; funcs }

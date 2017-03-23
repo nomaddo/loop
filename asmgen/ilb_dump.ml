@@ -76,16 +76,30 @@ and dump_index_mode fmt = function
   | Base_offset {base; offset} ->
       Format.fprintf fmt "{%a + %a}" dump_operand base dump_operand offset
 
+and dump_set fmt set =
+  Format.printf "(";
+  Set.iter (fun op -> Format.printf "%a " dump_operand op) set;
+  Format.printf ")";
+
+and dump_var_attr fmt instr =
+  try
+    if !Flags.show_valid_vars then
+      let Some set = Ir.Instr.find_vars instr in
+      dump_set fmt set;
+    else ()
+  with  _ -> ()
+
 and dump_ilb fmt instr =
   let d = dump_operand in
+  let dv = dump_var_attr in
   match instr.instr_core with
-  | Add (x, y, z)    -> Format.fprintf fmt "add %a, %a, %a@." d x d y d z
-  | Sub (x, y, z)    -> Format.fprintf fmt "sub %a, %a, %a@." d x d y d z
-  | Mul (x, y, z)    -> Format.fprintf fmt "mul %a, %a, %a@." d x d y d z
-  | Div (x, y, z)    -> Format.fprintf fmt "div %a, %a, %a@." d x d y d z
-  | Str (addr, y)    -> Format.fprintf fmt "store %a, %a@." dump_index_mode addr d y
-  | Conv (x, y)      -> Format.fprintf fmt "conv %a, %a@." d x d y
-  | Mov (x, y)       -> Format.fprintf fmt "mov %a, %a@." d x d y
+  | Add (x, y, z)    -> Format.fprintf fmt "add %a, %a, %a %a@." d x d y d z dv instr
+  | Sub (x, y, z)    -> Format.fprintf fmt "sub %a, %a, %a %a@." d x d y d z dv instr
+  | Mul (x, y, z)    -> Format.fprintf fmt "mul %a, %a, %a %a@." d x d y d z dv instr
+  | Div (x, y, z)    -> Format.fprintf fmt "div %a, %a, %a %a@." d x d y d z dv instr
+  | Str (addr, y)    -> Format.fprintf fmt "store %a, %a %a@." dump_index_mode addr d y dv instr
+  | Conv (x, y)      -> Format.fprintf fmt "conv %a, %a %a@." d x d y dv instr
+  | Mov (x, y)       -> Format.fprintf fmt "mov %a, %a %a@." d x d y dv instr
   | Branch (k, b) ->
       let msg =
         match k with
@@ -97,21 +111,21 @@ and dump_ilb fmt instr =
         match k with
         | Le -> "mle" | Lt -> "mlt" | Ge -> "mge"
         | Gt -> "mgt" | Eq -> "meq" | Ne -> "mne" in
-      Format.fprintf fmt "%s %a, %a@." msg d x d y
+      Format.fprintf fmt "%s %a, %a %a@." msg d x d y dv instr
   | Call (opt, tpath, ops) ->
       begin match opt with
       | None ->
-        Format.fprintf fmt "call %a, %a@." dump_tpath tpath
+        Format.fprintf fmt "call %a, %a %a@." dump_tpath tpath dv instr
           (fun fmt l -> List.iter (d fmt) l) ops
       | Some op ->
-        Format.fprintf fmt "call %a, %a, %a@." d op dump_tpath tpath
+        Format.fprintf fmt "call %a, %a, %a %a@." d op dump_tpath tpath dv instr
           (fun fmt l -> List.iter (d fmt) l) ops
       end
-  | Ret Some x -> Format.fprintf fmt "ret %a@." d x
-  | Ret None   -> Format.fprintf fmt "ret@."
-  | Alloc (x, y) -> Format.fprintf fmt "alloc %a, %a@." d x d y
-  | Dealloc (x, y) -> Format.fprintf fmt "dealloc %a, %a@." d x d y
-  | Bl tpath -> Format.fprintf fmt "bl %a@." dump_tpath  tpath
-  | B tpath -> Format.fprintf fmt "b %a@." dump_tpath  tpath
-  | Ldr (x, y) -> Format.fprintf fmt "ldr %a, %a@." d x dump_index_mode y
-  | Cmp (x, y) -> Format.fprintf fmt "cmp %a, %a@." d x d y
+  | Ret Some x -> Format.fprintf fmt "ret %a %a@." d x dv instr
+  | Ret None   -> Format.fprintf fmt "ret %a@." dv instr
+  | Alloc (x, y) -> Format.fprintf fmt "alloc %a, %a %a@." d x d y dv instr
+  | Dealloc (x, y) -> Format.fprintf fmt "dealloc %a, %a %a@." d x d y dv instr
+  | Bl tpath -> Format.fprintf fmt "bl %a %a@." dump_tpath  tpath dv instr
+  | B tpath -> Format.fprintf fmt "b %a %a@." dump_tpath  tpath dv instr
+  | Ldr (x, y) -> Format.fprintf fmt "ldr %a, %a %a@." d x dump_index_mode y dv instr
+  | Cmp (x, y) -> Format.fprintf fmt "cmp %a, %a %a@." d x d y dv instr
