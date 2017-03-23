@@ -1,5 +1,5 @@
 (* 定数のmovの除去
-
+   不要命令の削除
 *)
 
 open Batteries
@@ -185,3 +185,139 @@ let func {Ir.entry} =
   ignore map;
   (* dump_map map; *)
   !flag
+
+let add op set =
+  match op.Operand.opcore with
+  | Operand.Iconst _ -> set
+  | Operand.Rconst _ -> set
+  | Operand.Tv    _  -> Set.add op set
+  | Operand.Fp       -> set
+  | Operand.Sp       -> set
+  | Operand.Var _    -> set
+
+let mark_instr set instr =
+  match instr.instr_core with
+  | Add     (op1, op2, op3)   ->
+      let set = add op2 set
+                |> add op3
+                |> Set.remove op1 in
+      Instr.remove_attr (function Vars _ -> true) instr;
+      instr.instr_attrs <- Ir.Vars set :: instr.instr_attrs;
+      set
+  | Sub     (op1, op2, op3)   ->
+      let set = add op2 set in
+      let set = add op3 set in
+      let set = Set.remove op1 set in
+      instr.instr_attrs <- Ir.Vars set :: instr.instr_attrs;
+      set
+  | Mul     (op1, op2, op3)   ->
+      let set = add op2 set in
+      let set = add op3 set in
+      let set = Set.remove op1 set in
+      instr.instr_attrs <- Ir.Vars set :: instr.instr_attrs;
+      set
+  | Div     (op1, op2, op3)   ->
+      let set = add op2 set in
+      let set = add op3 set in
+      let set = Set.remove op1 set in
+      instr.instr_attrs <- Ir.Vars set :: instr.instr_attrs;
+      set
+  | Str     (index_mode, op)  ->
+      let set = add op set in
+      begin match index_mode with
+        | Ir.Base_offset {base; offset} ->
+            let set = add offset set in
+            instr.instr_attrs <- Ir.Vars set :: instr.instr_attrs;
+            set
+      end
+  | Ld     (op, index_mode)  ->
+      begin match index_mode with
+        | Ir.Base_offset {base; offset} ->
+            let set = add offset set in
+            instr.instr_attrs <- Ir.Vars set :: instr.instr_attrs;
+            set
+      end
+  | Mov     (op1, op2)        ->
+      let set = add op2 set in
+      instr.instr_attrs <- Ir.Vars set :: instr.instr_attrs;
+      set
+  | Ret     op                ->
+      begin match op with
+        | None -> set
+        | Some op ->
+            let set = add op set in
+            instr.instr_attrs <- Ir.Vars set :: instr.instr_attrs;
+            set
+      end
+  | Conv    (op1, op2)        ->
+      let set = add op2 set in
+      instr.instr_attrs <- Ir.Vars set :: instr.instr_attrs;
+      set
+  | Call    (opt, tpath, ops)      ->
+      let set = List.fold_left (fun set op -> add op set) set ops in
+      instr.instr_attrs <- Ir.Vars set :: instr.instr_attrs;
+      set
+  | Branch (k, op1, op2, bc) ->
+      let set = add op2 set |> add op1 in
+      instr.instr_attrs <- Ir.Vars set :: instr.instr_attrs;
+      set
+  | Bmov (k, op1, op2, op3, op4) ->
+      let set = add op2 set |> add op3 |> add op4 in
+      instr.instr_attrs <- Ir.Vars set :: instr.instr_attrs;
+      set
+  | Alloc (op1, op2)
+  | Dealloc (op1, op2) ->
+      let set = add op2 set in
+      instr.instr_attrs <- Ir.Vars set :: instr.instr_attrs;
+      set
+
+let remove_instr bc instr =
+  let should_remove op set =
+    let open Operand in
+    match op.opcore with
+    | Fp | Sp -> false
+    | Tv _ | Var _ -> not (Set.mem op set)
+    | Iconst _ | Rconst _ -> true in
+
+  let f bc instr op =
+      begin match Instr.next bc instr with
+      | None -> ()
+      | Some instr_ ->
+          match Instr.find_vars instr_ with
+          | None -> ()
+          | Some set ->
+              if should_remove op set then begin
+                Format.printf "remove_instr: %a" Dump.dump_ila instr;
+                Instr.delete bc instr
+              end
+      end in
+  match instr.instr_core with
+  | Add (op1, op2, op3) -> f bc instr op1
+  | Sub (op1, op2, op3) -> f bc instr op1
+  | Mul (op1, op2, op3) -> f bc instr op1
+  | Div (op1, op2, op3) -> f bc instr op1
+  | Str (index_mode, op) -> ()
+  | Ld (op, index_mode) -> f bc instr op
+  | Mov (op1, op2) -> f bc instr op1
+  | Ret opopt -> ()
+  | Conv (op1, op2) -> f bc instr op1
+  | Call (opt, tpath, ops) -> ()
+  | Alloc (op1, op2)
+  | Dealloc (op1, op2) -> ()
+  | Branch (k, op1, op2, bc) -> ()
+  | Bmov (k, op1, op2, op3, op4) -> f bc instr op1
+
+let rec set_var_attr set bc =
+  if bc.traverse_attr = 700 then set else begin
+    bc.traverse_attr <- 700;
+    match bc.next with
+    | None -> List.fold_left mark_instr set (List.rev bc.instrs)
+    | Some _ ->
+        List.map (set_var_attr set) bc.succs
+        |> List.fold_left (fun acc set -> Set.union acc set) set
+  end
+
+let remove_redundant_instr {label_name; args; entry} =
+  set_var_attr Set.empty entry |> ignore;
+  Ir_util.iter 701 (fun bc ->
+    List.iter (remove_instr bc) bc.instrs) entry

@@ -4,5 +4,6 @@ int f (int i, int j)
 {
   i = i + j + i;
   int x = (1 == j);
+  int y = i * i;
   return x + j;
 }

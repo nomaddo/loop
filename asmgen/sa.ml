@@ -60,14 +60,12 @@ let replace_index l op index_mode f =
       let instrs = add_chain tv ops in
       if instrs = [] then
         if Operand.is_zero offset then
-          [Ldr (op, Base_offset {base = frame_pointer;
-                                 offset = Operand.new_operand (Operand.Iconst i) Typ.I4})
-           |> Instr.new_instr]
+          [f op (Base_offset {base = frame_pointer;
+                              offset = Operand.new_operand (Operand.Iconst i) Typ.I4})]
         else
           [Add (tv, Operand.new_operand (Operand.Iconst i) Typ.I4, offset)
            |> Instr.new_instr;
-           Ldr (op, Base_offset {base = frame_pointer; offset = tv})
-           |> Instr.new_instr]
+           f op (Base_offset {base = frame_pointer; offset = tv})]
       else
         [Mov (tv, Operand.new_operand (Operand.Iconst i) Typ.I4) |> Instr.new_instr] @
           instrs @
@@ -102,11 +100,19 @@ let alloc_bc (l, args) bc =
         delete op1 acc, args
     | Ldr (op, index_mode) ->
         mark_arg args index_mode;
-        Instr.replace_instrs bc instr (calc_ldr acc op index_mode);
+        let instrs = calc_ldr acc op index_mode in
+        Flags.dmsg (fun () ->
+          Format.printf "alloc_bc: %a to %a@." Ilb_dump.dump_ilb instr
+            (fun fmt -> List.iter (Format.fprintf fmt "%a" Ilb_dump.dump_ilb)) instrs);
+        Instr.replace_instrs bc instr instrs;
         acc, args
     | Str (index_mode, op) ->
         mark_arg args index_mode;
-        Instr.replace_instrs bc instr (calc_str acc index_mode op);
+        let instrs = calc_str acc index_mode op in
+        Flags.dmsg (fun () ->
+          Format.printf "alloc_bc: %a to %a@." Ilb_dump.dump_ilb instr
+            (fun fmt -> List.iter (Format.fprintf fmt "%a" Ilb_dump.dump_ilb)) instrs);
+        Instr.replace_instrs bc instr instrs;
         acc, args
     | _ -> acc, args) (l, args) bc.instrs
 

@@ -22,3 +22,6 @@ let flag_on r =
 
 let flag_off r =
   r := false
+
+let dmsg flag f =
+  if !flag then f () else ()
