@@ -12,8 +12,9 @@ let copy = Operand.copy
 let is_marked = Operand.is_marked
 let is_constant = Operand.is_constant
 
+let transl_func memories func =
+  Ilb_simplify.set_var_attr Set.empty func.entry
 
-
-let transl {Ir.memories; funcs} =
-  List.iter (fun func -> transl_func memories func |> ignore) funcs;
-  { memories; funcs }
+let transl top =
+  List.iter (fun func ->
+    transl_func top.Ir.memories func |> ignore) top.Ir.funcs

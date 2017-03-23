@@ -84,8 +84,9 @@ and dump_set fmt set =
 and dump_var_attr fmt instr =
   try
     if !Flags.show_valid_vars then
-      let Some set = Ir.Instr.find_vars instr in
-      dump_set fmt set;
+      match Ir.Instr.find_vars instr with
+      | Some set -> dump_set fmt set
+      | None -> ()
     else ()
   with  _ -> ()
 

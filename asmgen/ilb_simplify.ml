@@ -305,17 +305,18 @@ let remove_instr bc instr =
   | Alloc (op1, op2)
   | Dealloc (op1, op2) -> ()
 
+let rec set_var_attr set bc =
+  if bc.traverse_attr = 700 then set else begin
+    bc.traverse_attr <- 700;
+    match bc.next with
+    | None -> List.fold_left mark_instr set (List.rev bc.instrs)
+    | Some _ ->
+        List.map (set_var_attr set) bc.succs
+        |> List.fold_left (fun acc set -> Set.union acc set) set
+  end
+
+
 let remove_redundant_instr {label_name; args; entry} =
-  let rec set_sets set bc =
-    if bc.traverse_attr = 700 then set else begin
-      bc.traverse_attr <- 700;
-      match bc.next with
-      | None -> List.fold_left mark_instr set (List.rev bc.instrs)
-      | Some _ ->
-          List.map (set_sets set) bc.succs
-          |> List.fold_left (fun acc set -> Set.union acc set) set
-    end
-  in
-  set_sets Set.empty entry |> ignore;
+  set_var_attr Set.empty entry |> ignore;
   Ir_util.iter 701 (fun bc ->
     List.iter (remove_instr bc) bc.instrs) entry
