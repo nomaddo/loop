@@ -369,7 +369,7 @@ let transl_toplevel (f,g,m) bc mod_name = function
                 if next.id = bc.id then begin
                   Format.printf "shrink_empty: %d and %d@." bc.id bc'.id;
                   flag := true;
-                  bc'.next <- None
+                  bc'.next <- bc.next
                 end
             | None -> ()) bc.preds;
         end in
@@ -384,7 +384,9 @@ let transl_toplevel (f,g,m) bc mod_name = function
         Ir_util.iter 600 shrink_empty entry;
         Ir_util.set_control_flow entry;
       done;
-      Ir_util.iter 400 check_ret entry;
+      begin try
+        Ir_util.iter 400 check_ret entry;
+        with exn -> Format.printf "%a@." Dump.dump_bcs entry; raise exn end;
       let func =
         { label_name = Tident.make_label mod_name tpath;
           args = transl_args args;

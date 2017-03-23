@@ -5,7 +5,7 @@ int f (int x)
   {
     int b = a * a;
     int[x] c;
-    for d = 1 to x + x{
+    for d = 1 to x + x {
       if (d == 0)
       { return f (3); }
     }

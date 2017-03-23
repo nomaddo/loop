@@ -68,7 +68,8 @@ let rec set_control_flow bc =
         List.iter gather_info bc.succs
       end in
     gather_info bc;
-    Hashtbl.iter (fun succ prev -> succ.preds <- prev :: succ.preds) hash in
+    Hashtbl.iter (fun succ prev ->
+      if List.mem prev succ.preds then () else succ.preds <- prev :: succ.preds) hash in
 
   let reset_loop bc =
     iter (-100) (fun bc ->
