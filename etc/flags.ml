@@ -12,6 +12,8 @@ let toilb = ref false
 let sa    = ref false
 let ra    = ref false
 
+let show_stack = ref false
+let show_dyn_arrays = ref false
 let show_valid_vars = ref false
 
 let dmsg f =

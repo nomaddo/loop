@@ -33,6 +33,12 @@ let noopt =
 let show_vars =
   ("--show-vars", Arg.Unit (on Flags.show_valid_vars), "")
 
+let show_stack_layout =
+  ("--show-stack-layout", Arg.Unit (on Flags.show_stack), "")
+
+let show_dyn_arrays =
+  ("--show-dyn-arrays", Arg.Unit (on Flags.show_dyn_arrays), "")
+
 let toilb =
   ("--toilb", Arg.Unit (on Flags.toilb), "")
 
@@ -44,4 +50,4 @@ let ra =
 
 let spec =
   [ ast; tast; ila; ilb; intf; dflag; opt; noopt; show_vars;
-    toilb; sa; ra ]
+    toilb; sa; ra; show_stack_layout; show_dyn_arrays ]

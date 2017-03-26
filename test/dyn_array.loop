@@ -2,12 +2,14 @@ int(int) g = prim g;
 
 void f (int x)
 {
+  int[3] z;
   int[x] a;
   int[x] b;
 
   g(a[1]);
   for i = 0 to 10
   {
+    int[3] aaa;
     int[i] c;
     g(c[1]);
     if (i == 0)

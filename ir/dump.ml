@@ -47,6 +47,17 @@ and dump_bcs fmt bc =
 
 and dump_bc fmt bc =
   Format.fprintf fmt "--- block_%d %a@." bc.id dump_bc_loop_info bc;
+
+  Etc.dmsg Flags.show_dyn_arrays (fun () ->
+    List.iter (fun (op1, op2) ->
+      if bc.dyn_arrays = [] then Format.printf "dyn_array: none@." else
+      Format.printf "dyn_array: %a: %a@." dump_operand op1 dump_operand op2) bc.dyn_arrays);
+
+  Etc.dmsg Flags.show_stack (fun () ->
+    List.iter (fun (op1, i) ->
+      if bc.stack_layout = [] then Format.printf "stack: none@." else
+      Format.printf "stack: %a: %d@." dump_tpath op1 i) bc.stack_layout);
+
   Format.fprintf fmt "prevs: %a@." (fun fmt ->
     List.iter (fun (bc:'a Ir.basic_block) -> Format.fprintf fmt "%d " bc.id)) bc.preds;
   Format.fprintf fmt "succs: %a@." (fun fmt ->
