@@ -7,6 +7,12 @@ type 'a basic_block = {
   id: int;
   mutable instrs : 'a instr list;
 
+  (* staticなstackの状態 *)
+  mutable stack_layout : (Tident.path * int) list;
+
+  (* ダイナミックに確保された配列 *)
+  mutable dyn_arrays : (Operand.operand * Operand.operand) list;
+
   (* 次のbasic_block *)
   mutable next   : 'a basic_block option;
 
@@ -48,8 +54,8 @@ and ila =
   (* 返り値を捨てる場合には第一operandがNoneになる *)
   | Call   of operand option * Tident.path * operand list
   | Ret    of operand option
-  | Alloc  of operand * operand  (* スタックの確保 *)
-  | Dealloc of operand * operand (* スタックの解放 *)
+  | Alloc of operand * operand (* 可変長配列の確保 *)
+  | Dealloc of operand * operand (* 可変長配列の解放 *)
 
 and br_kind =
   | Le | Lt | Ge | Gt | Eq | Ne
@@ -205,15 +211,18 @@ module Instr = struct
 end
 
 module Bc = struct
-  let new_bc ?(attrs=[]) loop =
-    let bc = { instrs = []; next = None; succs = []; loop = loop;
-               preds = []; basic_block_attrs=attrs; id = Etc.cnt (); traverse_attr = 0} in
+  let new_bc ?(attrs=[]) ~stack_layout ~dyn_arrays loop =
+    let bc = { instrs = []; next = None; succs = []; loop = loop; stack_layout;
+               dyn_arrays; preds = []; basic_block_attrs=attrs;
+               id = Etc.cnt (); traverse_attr = 0} in
     bc
 
   let concat_bc p n =
     p.next <- Some n
 
   let shrink x y =
+    Flags.dmsg (fun () ->
+      Format.printf "shrink: %d and %d@." x.id y.id);
     x.instrs <- x.instrs @ y.instrs;
     x.succs <- y.succs;
     x.next <- y.next;

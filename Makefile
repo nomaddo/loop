@@ -16,11 +16,12 @@ IR      = ${addprefix ir/, typ.cmo operand.cmo ir.cmo ir_util.cmo dump.cmo ila_c
 ASMGEN  = ${addprefix asmgen/, ilb.cmo ilb_dump.cmo ilb_util.cmo ilb_simplify.cmo toilb.cmo sa.cmo ra.cmo asmgen.cmo}
 DRIVER  = ${addprefix driver/, options.cmo main.cmo}
 
-OBJS= ${ETC} ${PARSING} ${TYPING} ${IR} ${ASMGEN} ${DRIVER}
+FILES= ${ETC} ${PARSING} ${TYPING} ${IR} ${ASMGEN} ${DRIVER}
+OBJS= $(filter %.cmo, ${FILES})
 XOBJS= ${subst cmo,cmx,${OBJS}}
 OPT=-g -bin-annot
 
-loop: ${INTF} ${OBJS} libloop.cma
+loop: ${INTF} ${FILES} libloop.cma
 	$(OCAMLC) ${LIB} ${OPT} -w -A -linkpkg -linkall -o $@ ${OBJS}
 
 loop.opt: ${INTF} ${XOBJS}
@@ -35,8 +36,8 @@ depend:
 clean:
 	rm -rf loop loop.opt `find -name "*.cm?"` parsing/{parser.ml,parser.mli,lexer.ml}
 
-parser.cmo: parser.ml parser.cmi
-	$(OCAMLC) -c $<
+parsing/parser.ml: parsing/pident.cmo parsing/ast.cmo
+parsing/parser.mli: parsing/pident.cmo parsing/ast.cmo
 
 %.cmi: %.mli
 	${OCAMLC} ${INCLUDE} -c ${LIB} ${OPT} $<

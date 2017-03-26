@@ -53,9 +53,10 @@ let compare_op k op1 op2 =
 
 let shrink k op1 op2 (bc: 'a basic_block) (dist: 'a basic_block) =
   if compare_op k op1 op2 then
-    Etc.dmsg Flags.dflag (fun () ->
-      Format.printf "shrink: %d 's next is %d@." bc.id dist.id);
-    bc.next <- Some dist
+    begin Flags.dmsg (fun () ->
+        Format.printf "shrink: %d 's next is %d@." bc.id dist.id);
+      bc.next <- Some dist
+    end
 
 let simplify_index map index_mode =
   match index_mode with
@@ -184,6 +185,7 @@ let func {Ir.entry} =
   let map = Ir_util.fold (entry.traverse_attr + 1) (fun map bc ->
       let map, instrs = simplify_bc map bc in
       bc.instrs <- instrs; map) map entry in
+  Ir_util.set_control_flow entry;
   ignore map;
   (* dump_map map; *)
   !flag

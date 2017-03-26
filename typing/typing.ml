@@ -3,12 +3,9 @@ open Tyenv
 open Etc
 open Typed_ast
 
-let dummy_const =
-  { expr_core = Iconst 0; expr_typ = Typed_ast.Int }
-
 let type_fail expected typ =
   Format.printf "type_fail: %s expected, but %s@."
-    (Typed_ast.show_typ expected) (Typed_ast.show_typ typ);
+    (Typed_ast.show_typ (fun fmt e -> ()) expected) (Typed_ast.show_typ (fun fmt e -> ()) typ);
   failwith "type_error"
 
 let rec assert_typ expected typ =
@@ -24,7 +21,7 @@ let rec assert_typ expected typ =
 
 and check_aref_args intf typ l =
   Etc.dmsg Flags.dflag (fun () ->
-    Format.printf "check_aref_args: %s@." (Typed_ast.show_typ typ));
+    Format.printf "check_aref_args: %s@." (Typed_ast.show_typ (fun fmt e -> ()) typ));
   match typ with
   | Array (typ, e) ->
       begin match l with
@@ -41,24 +38,24 @@ let rec type_expr intf e =
   match e with
   | Ast.Var pident ->
       let tpath, typ = Tyenv.lookup_ppath intf pident in
-      { expr_core = Var tpath; expr_typ = typ }
+      new_expr (Var tpath) typ intf
   | Ast.Iconst i ->
-      { expr_core = Iconst i; expr_typ  = Int }
+      new_expr (Iconst i) Int intf
   | Ast.Rconst s ->
-      { expr_core = Rconst s; expr_typ  = Real }
+      new_expr (Rconst s) Real intf
   | Ast.Call (ppath, es) ->
       let tes = List.map (type_expr intf) es in
       let typs = List.map (fun e -> e.expr_typ) tes in
       let tpath, rettyp = Tyenv.lookup_ppath intf ppath in
       assert_typ rettyp (Lambda (typs, ret_typ rettyp));
-      let expr_core : expr_core = Call (tpath, tes) in
-      { expr_core; expr_typ = ret_typ rettyp }
+      let expr_core : intf expr_core = Call (tpath, tes) in
+      new_expr expr_core (ret_typ rettyp) intf
   | Ast.Aref (ppath, es) ->
       let tpath, array_typ = Tyenv.lookup_ppath intf ppath in
       let tes = List.map (type_expr intf) es in
       let expr_typ = check_aref_args intf array_typ tes in
       let expr_core = Aref (tpath, tes) in
-      { expr_core; expr_typ }
+      new_expr expr_core expr_typ intf
 
 and type_decl intf rettyp decl =
   match decl with

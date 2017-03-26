@@ -39,7 +39,7 @@ let transl_func memories {Ir.label_name; args; entry; } =
   let hash = BcMap.create 100 in
   Ir_util.reset_traverse_attr entry;
   Ir_util.iter 100 (fun bc -> insert_with_int hash bc
-      (Bc.new_bc Loop_info.dummy_loop)) entry;
+      (Bc.new_bc ~stack_layout:entry.stack_layout ~dyn_arrays:entry.dyn_arrays Loop_info.dummy_loop)) entry;
   let new_bc = BcMap.find hash entry in
   Ir_util.iter 200 (transl_bc hash memories) entry;
   Ilb_util.set_control_flow new_bc;

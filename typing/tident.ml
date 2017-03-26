@@ -12,6 +12,8 @@ let ident tpath =
   match tpath with
   | Tident ident -> ident
 
+let get_name tpath = (ident tpath).name
+
 let path s =
   let id = make_ident s in
   Tident id

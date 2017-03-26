@@ -4,8 +4,8 @@ open Etc
 type intf = { intf_name : Tident.path;
               intf_mod  : (Pident.ident, Tident.path * intf) Map.t;
               intf_mod_ : (Tident.ident, intf) Map.t;
-              intf_path : (Pident.ident, Tident.path * Typed_ast.typ) Map.t ;
-              intf_path_: (Tident.ident, Typed_ast.typ * bool) Map.t
+              intf_path : (Pident.ident, Tident.path * intf Typed_ast.typ) Map.t ;
+              intf_path_: (Tident.ident, intf Typed_ast.typ * bool) Map.t
             }
 
 let show_intf intf =
@@ -13,7 +13,7 @@ let show_intf intf =
     Format.printf "%s: (%s, %s)@."
     ++ Pident.show_ident pident
     ++ Tident.show_path tpath
-    ++ Typed_ast.show_typ typ) intf.intf_path
+    ++ Typed_ast.show_typ (fun fmt e -> ())typ) intf.intf_path
 
 let rec recreate_intf intf =
   let intf_mod  =

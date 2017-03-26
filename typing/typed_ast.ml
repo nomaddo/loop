@@ -1,44 +1,46 @@
 type direction = Ast.direction
 [@@deriving show]
 
-type  expr_core =
+type 'a expr_core =
   | Var    of Tident.path
   | Iconst of int
   | Rconst of string
-  | Call   of Tident.path *  expr list
-  | Aref   of Tident.path *  expr list
+  | Call   of Tident.path *  'a expr list
+  | Aref   of Tident.path *  'a expr list
 
-and expr = { expr_core: expr_core; expr_typ: typ }
-[@@deriving show]
+and 'a expr = { expr_core: 'a expr_core; expr_typ: 'a typ; expr_intf: 'a }
 
-and typ =
+and 'a typ =
   | Void
   | Int
   | Real
-  | Array of  typ *  expr
-  | Lambda of  typ list *  typ
+  | Array of 'a typ *  'a expr
+  | Lambda of 'a typ list *  'a typ
 [@@deriving show]
 
-type  decl =
-  | Decl   of typ * Tident.path *  expr option
-  | If     of expr *  decl list *  decl list option
-  | Assign of Tident.path *  expr
-  | Astore of Tident.path *  expr list *  expr
-  | For    of Tident.path *  expr * direction *  expr *  expr option *  decl list
-  | While  of expr *  decl list
-  | Call   of Tident.path *  expr list * typ
-  | Return of expr option
+type 'a decl =
+  | Decl   of 'a typ * Tident.path *  'a expr option
+  | If     of 'a expr *  'a decl list *  'a decl list option
+  | Assign of Tident.path *  'a expr
+  | Astore of Tident.path *  'a expr list *  'a expr
+  | For    of Tident.path *  'a expr * direction *  'a expr *  'a expr option *  'a decl list
+  | While  of 'a expr *  'a decl list
+  | Call   of Tident.path *  'a expr list * 'a typ
+  | Return of 'a expr option
 [@@deriving show]
 
-type  top_decl =
-  | Fundef     of  typ * Tident.path * (Tident.path * typ) list *  decl list
-  | Global_var of  typ * Tident.path *  expr option
-  | Prim       of  typ * Tident.path * string
+type  'a top_decl =
+  | Fundef     of  'a typ * Tident.path * (Tident.path * 'a typ) list *  'a decl list
+  | Global_var of  'a typ * Tident.path *  'a expr option
+  | Prim       of  'a typ * Tident.path * string
 [@@deriving show]
 
-type t = top_decl list
+type 'a t = 'a top_decl list
 [@@deriving show]
 
 let ret_typ = function
   | Lambda (_, ret) -> ret
   | _ -> failwith "ret_typ"
+
+let new_expr expr_core expr_typ intf =
+  {expr_core; expr_typ; expr_intf=intf}

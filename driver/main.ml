@@ -4,7 +4,7 @@ let dump_ast ast =
   Format.printf "%s@." (Ast.show ast)
 
 let dump_tast tast =
-  Format.printf "%s@." (Typed_ast.show tast)
+  Format.printf "%s@." (Typed_ast.show (fun fmt e -> ()) tast)
 
 let dump_ila top =
   Format.printf "%a@." Dump.dump top
