@@ -88,7 +88,7 @@ let mark_arg args index_mode =
         begin match List.index_of base args with
           | None -> ()
           | Some i ->
-              base.Operand.attrs <- Operand.Arg i :: base.Operand.attrs
+              base.Operand.operand_attrs <- Operand.Arg i :: base.Operand.operand_attrs
         end
   end
 
@@ -180,13 +180,13 @@ let arg_to_tv {Ir.label_name; args; entry} =
           if !r_cnt > 4 then begin    (* レジスタに乗り切らない *)
             incr r_cnt;
             let tv = Operand.new_tv arg.Operand.typ in
-            tv.Operand.attrs <- Operand.Arg i :: tv.Operand.attrs;
+            tv.Operand.operand_attrs <- Operand.Arg i :: tv.Operand.operand_attrs;
             Map.add arg (`Stack tv) map
           end
           else begin
             incr r_cnt;
             let tv = Operand.new_tv arg.Operand.typ in
-            tv.Operand.attrs <- Operand.Arg i :: tv.Operand.attrs;
+            tv.Operand.operand_attrs <- Operand.Arg i :: tv.Operand.operand_attrs;
             Map.add arg (`Reg tv) map end) Map.empty args in
   ignore (Ir_util.fold 100 arg_to_tv_bc map entry)
 

@@ -15,7 +15,7 @@ type opcore =
    raではレジスタ情報を書き込む前にコピーしてから書き込む *)
 type operand =
   { opcore: opcore; typ: typ;
-    mutable attrs: operand_attr list }
+    mutable operand_attrs: operand_attr list }
 
 and operand_attr =
   | Tpath of Tident.path
@@ -28,7 +28,7 @@ and operand_attr =
 and reg = {kind: string; num: int}
 
 let new_operand ?(attrs=[]) opcore typ =
-  { opcore; typ; attrs }
+  { opcore; typ; operand_attrs=attrs }
 
 let count, reset =
   let r = ref 0 in
@@ -36,7 +36,7 @@ let count, reset =
 
 let new_tv ?(attrs=[]) ?(opt=None) typ =
     { opcore = Tv (count ()); typ;
-      attrs = attrs @ match opt with None -> []
+      operand_attrs = attrs @ match opt with None -> []
                                    | Some tpath -> [Tpath tpath]}
 
 let hash = Hashtbl.create 10
@@ -61,18 +61,18 @@ let is_zero op =
 let copy op =
   { opcore = op.opcore;
     typ = op.typ;
-    attrs = List.map (fun x -> x) op.attrs }
+    operand_attrs = List.map (fun x -> x) op.operand_attrs }
 
 let get_reg instr =
   let regs = List.filter
-      (function Reg {kind; num} -> true | _ -> false) instr.attrs in
+      (function Reg {kind; num} -> true | _ -> false) instr.operand_attrs in
   match regs with
   | [Reg x] -> x
   | _ -> failwith "get_reg"
 
 let is_marked instr =
   let regs = List.filter
-      (function Reg {kind; num} -> true | _ -> false) instr.attrs in
+      (function Reg {kind; num} -> true | _ -> false) instr.operand_attrs in
   match regs with
   | [] -> false
   | [x] -> true

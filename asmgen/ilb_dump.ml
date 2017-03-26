@@ -32,7 +32,7 @@ and dump_operand fmt op =
         dump_tpath tpath dump_typ op.typ
   | Tv     i -> begin
       try
-        let Arg j = List.find (function Arg i -> true | _ -> false) op.attrs in
+        let Arg j = List.find (function Arg i -> true | _ -> false) op.operand_attrs in
         Format.fprintf fmt "@arg_%d(%d)(%a)" j i dump_typ op.typ
       with Not_found ->
         Format.fprintf fmt "@%d(%a)" i dump_typ op.typ

@@ -69,11 +69,13 @@ and type_decl intf rettyp decl =
       (new_intf, Decl (new_typ, tpath, eopt))
     end
   | Ast.If (e, ds, dsopt) ->
+      let te = type_expr intf e in
+      assert_typ (te.expr_typ) Int;
       let _then = snd ++ type_decls intf rettyp ds in
       let _else = match dsopt with
         | None -> None
         | Some ds -> Some (snd ++ type_decls intf rettyp ds)  in
-      (intf, If (type_expr intf e, _then, _else))
+      (intf, If (te, _then, _else))
   | Ast.Assign (ppath, e) ->
       let tpath, typ = Tyenv.lookup_ppath intf ppath in
       let e = type_expr intf e in

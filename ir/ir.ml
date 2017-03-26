@@ -16,7 +16,7 @@ type 'a basic_block = {
   (* 前になりうるbasic_block *)
   mutable preds  : 'a basic_block list;
 
-  mutable attrs  : basic_block_attr list;
+  mutable basic_block_attrs  : basic_block_attr list;
 
   mutable loop : 'a loop_info;
 
@@ -89,7 +89,7 @@ and 'a loop_info = {
   (* 子のループ *)
   mutable child      : 'a loop_info list;
 
-  mutable attrs      : loop_info_attr list
+  mutable loop_info_attrs  : loop_info_attr list
 }
 
 and loop_info_attr =
@@ -189,8 +189,7 @@ module Instr = struct
   let find_vars instr =
     try
       let Vars set =
-        List.find (function Vars set -> true
-                          | _ -> false) instr.instr_attrs in
+        List.find (function Vars set -> true) instr.instr_attrs in
       Some set
     with  _ -> None
 
@@ -208,7 +207,7 @@ end
 module Bc = struct
   let new_bc ?(attrs=[]) loop =
     let bc = { instrs = []; next = None; succs = []; loop = loop;
-               preds = []; attrs; id = Etc.cnt (); traverse_attr = 0} in
+               preds = []; basic_block_attrs=attrs; id = Etc.cnt (); traverse_attr = 0} in
     bc
 
   let concat_bc p n =
@@ -232,7 +231,7 @@ module Loop_info = struct
       epilogue = None;
       parent = None;
       child = [];
-      attrs = [Total]
+      loop_info_attrs = [Total]
     }
 
   let dummy_loop = Obj.magic (empty_loop (-1))
