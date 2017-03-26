@@ -1,12 +1,16 @@
 let print_ast = ref false
 let print_tast = ref false
 let print_ila = ref false
-let print_ilb = ref true
+let print_ilb = ref false
 let search_path : string list ref = ref []
 
 let dflag = ref false
 
 let opt = ref true
+
+let toilb = ref false
+let sa    = ref false
+let ra    = ref false
 
 let show_valid_vars = ref false
 

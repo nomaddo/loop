@@ -1,8 +1,9 @@
-int[1] a;
+int(int) g = prim g;
 
 void f (int x)
 {
-  int[x+1] null;
-  int[x] hoge;
-  hoge[3] = 1;
+  int[10] null;
+  int[10] hoge;
+  g(hoge[2]);
+  return;
 }

@@ -23,7 +23,8 @@ let rec assert_typ expected typ =
       type_fail expected typ
 
 and check_aref_args intf typ l =
-  Format.printf "check_aref_args: %s@." (Typed_ast.show_typ typ);
+  Etc.dmsg Flags.dflag (fun () ->
+    Format.printf "check_aref_args: %s@." (Typed_ast.show_typ typ));
   match typ with
   | Array (typ, e) ->
       begin match l with

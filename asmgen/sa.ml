@@ -22,9 +22,12 @@ let rec delete e l =
 (* operand list受け取って、定数を加算してi, それ以外はxに入れてしまう *)
 let sum l =
   let open Operand in
-  Format.printf "sum: @.";
-  List.iter (Format.printf "%a " Ilb_dump.dump_operand) l;
-  Format.printf "@.sum end: @.";
+
+  Etc.dmsg Flags.dflag (fun () ->
+    Format.printf "sum: @.";
+    List.iter (Format.printf "%a " Ilb_dump.dump_operand) l;
+    Format.printf "@.sum end: @.");
+
   let x = ref [] in
   let i = List.fold_left (fun acc op -> match op.opcore with
       | Iconst i -> acc + i
@@ -85,7 +88,7 @@ let mark_arg args index_mode =
         begin match List.index_of base args with
           | None -> ()
           | Some i ->
-              base.Operand.attrs <- Operand.Arg i :: base.attrs
+              base.Operand.attrs <- Operand.Arg i :: base.Operand.attrs
         end
   end
 
@@ -123,12 +126,16 @@ let arg_to_tv_bc map bc =
         begin match index_mode with
           | Base_offset {base; offset} ->
               begin try
-                let tv = Map.find base map in
-                if Operand.is_zero offset then
-                  Instr.replace bc instr (Instr.new_instr (Mov (op, tv)))
-                else
-                  Instr.replace bc instr
-                    (Instr.new_instr (Ldr(op, Base_offset {base = tv; offset})))
+                  match Map.find base map with
+                  | `Reg tv ->
+                      if Operand.is_zero offset then
+                        Instr.replace bc instr (Instr.new_instr (Mov (op, tv)))
+                      else
+                        Instr.replace bc instr
+                          (Instr.new_instr (Ldr(op, Base_offset {base = tv; offset})))
+                  | `Stack tv ->
+                      Instr.replace bc instr
+                        (Instr.new_instr (Ldr(op, Base_offset {base = tv; offset})))
                 with Not_found -> ()
               end
         end
@@ -136,22 +143,51 @@ let arg_to_tv_bc map bc =
         begin match index_mode with
           | Base_offset {base; offset} ->
               begin try
-                let tv = Map.find base map in
-                if Operand.is_zero offset then
-                  Instr.replace bc instr (Instr.new_instr (Mov (tv, op)))
-                else
-                  Instr.replace bc instr
-                    (Instr.new_instr (Str (Base_offset {base = tv; offset}, op)))
+                  match Map.find base map with
+                  | `Reg tv ->
+                      if Operand.is_zero offset then
+                        Instr.replace bc instr (Instr.new_instr (Mov (tv, op)))
+                      else
+                        Instr.replace bc instr
+                          (Instr.new_instr (Str (Base_offset {base = tv; offset}, op)))
+                  | `Stack tv ->
+                      Instr.replace bc instr
+                        (Instr.new_instr (Str (Base_offset {base = tv; offset}, op)))
+
                 with Not_found -> ()
               end
         end
     | _ -> ()) bc.instrs; map
 
+(* TODO
+   いろいろな種類のレジスタであることを意識して変換
+*)
+
+(* ヒープレイアウトlからオフセット位置を計算する *)
+let size_of_offset (l: (Operand.operand * int) list) x =
+  let sum h =
+    List.fold_left (fun acc (_, i) -> acc + i) 0 h in
+  let i, _ = List.findi (fun i (e, _) -> e == x) l in
+  let h, _ = List.split_nth i l in
+  sum h
+
 let arg_to_tv {Ir.label_name; args; entry} =
+  let r_cnt = ref 0 in
+  let s_cnt = ref 0 in
   let map = List.fold_lefti (fun map i (arg: Operand.operand) ->
-      let tv = Operand.new_tv arg.Operand.typ in
-      tv.Operand.attrs <- Operand.Arg i :: tv.Operand.attrs;
-      Map.add arg tv map) Map.empty args in
+      match arg.Operand.typ with
+      | I4 ->
+          if !r_cnt > 4 then begin    (* レジスタに乗り切らない *)
+            incr r_cnt;
+            let tv = Operand.new_tv arg.Operand.typ in
+            tv.Operand.attrs <- Operand.Arg i :: tv.Operand.attrs;
+            Map.add arg (`Stack tv) map
+          end
+          else begin
+            incr r_cnt;
+            let tv = Operand.new_tv arg.Operand.typ in
+            tv.Operand.attrs <- Operand.Arg i :: tv.Operand.attrs;
+            Map.add arg (`Reg tv) map end) Map.empty args in
   ignore (Ir_util.fold 100 arg_to_tv_bc map entry)
 
 let stack_allocate {Ir.label_name; args; entry} =

@@ -1,0 +1,9 @@
+int(int) g = prim g;
+
+void f (int[10] a)
+{
+  int[10] x;
+  g (x[2]);
+  g (a[2]);
+  return;
+}

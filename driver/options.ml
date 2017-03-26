@@ -30,8 +30,18 @@ let opt =
 let noopt =
   ("-O0", Arg.Unit (off Flags.opt), "")
 
-let ra =
+let show_vars =
   ("--show-vars", Arg.Unit (on Flags.show_valid_vars), "")
 
+let toilb =
+  ("--toilb", Arg.Unit (on Flags.toilb), "")
+
+let sa =
+  ("--sa", Arg.Unit (on Flags.sa), "")
+
+let ra =
+  ("--sa", Arg.Unit (on Flags.ra), "")
+
 let spec =
-  [ ast; tast; ila; ilb; intf; dflag; opt; noopt; ra ]
+  [ ast; tast; ila; ilb; intf; dflag; opt; noopt; show_vars;
+    toilb; sa; ra ]

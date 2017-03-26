@@ -1,7 +1,5 @@
 ./asmgen/asmgen.cmo :
 ./asmgen/asmgen.cmx :
-./asmgen/code_out.cmo :
-./asmgen/code_out.cmx :
 ./asmgen/ilb.cmo :
 ./asmgen/ilb.cmx :
 ./asmgen/ilb_dump.cmo :
@@ -24,7 +22,6 @@
 ./etc/etc.cmx :
 ./etc/flags.cmo :
 ./etc/flags.cmx :
-./ir/basic_block.cmi :
 ./ir/dump.cmo :
 ./ir/dump.cmx :
 ./ir/ila_check.cmo :
@@ -45,9 +42,8 @@
 ./ir/typ.cmx :
 ./parsing/ast.cmo :
 ./parsing/ast.cmx :
-./parsing/parser.cmo : ./parsing/parser.cmi
-./parsing/parser.cmx : ./parsing/parser.cmi
-./parsing/parser.cmi :
+./parsing/parser.cmo :
+./parsing/parser.cmx :
 ./parsing/pident.cmo :
 ./parsing/pident.cmx :
 ./typing/btypes.cmo :
