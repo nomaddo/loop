@@ -18,7 +18,7 @@ and 'a typ =
   | Lambda of 'a typ list *  'a typ
 [@@deriving show]
 
-type 'a decl =
+type 'a decl_core =
   | Decl   of 'a typ * Tident.path *  'a expr option
   | If     of 'a expr *  'a decl list *  'a decl list option
   | Assign of Tident.path *  'a expr
@@ -27,6 +27,8 @@ type 'a decl =
   | While  of 'a expr *  'a decl list
   | Call   of Tident.path *  'a expr list * 'a typ
   | Return of 'a expr option
+
+and 'a decl = {decl_core: 'a decl_core; decl_intf: 'a}
 [@@deriving show]
 
 type  'a top_decl =
@@ -41,6 +43,9 @@ type 'a t = 'a top_decl list
 let ret_typ = function
   | Lambda (_, ret) -> ret
   | _ -> failwith "ret_typ"
+
+let new_decl core intf =
+  {decl_core=core; decl_intf=intf}
 
 let new_expr expr_core expr_typ intf =
   {expr_core; expr_typ; expr_intf=intf}

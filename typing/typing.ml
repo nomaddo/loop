@@ -63,7 +63,7 @@ and type_decl intf rettyp decl =
       let new_typ = type_typ intf typ in
       let tpath, new_intf = Tyenv.insert_path intf (Pident.ident ppath) new_typ in
       let eopt = Option.map (type_expr intf) eopt in
-      (new_intf, Decl (new_typ, tpath, eopt))
+      (new_intf, new_decl (Decl (new_typ, tpath, eopt)) new_intf)
     end
   | Ast.If (e, ds, dsopt) ->
       let te = type_expr intf e in
@@ -72,46 +72,46 @@ and type_decl intf rettyp decl =
       let _else = match dsopt with
         | None -> None
         | Some ds -> Some (snd ++ type_decls intf rettyp ds)  in
-      (intf, If (te, _then, _else))
+      (intf, new_decl (If (te, _then, _else)) intf)
   | Ast.Assign (ppath, e) ->
       let tpath, typ = Tyenv.lookup_ppath intf ppath in
       let e = type_expr intf e in
       assert_typ typ e.expr_typ;
-      intf, Assign (tpath, e)
+      intf, new_decl (Assign (tpath, e)) intf
   | Ast.Astore (ppath, es, e) ->
       let tpath, typ = Tyenv.lookup_ppath intf ppath in
       let es = List.map (type_expr intf) es in
       List.iter (fun e -> assert_typ Int e.expr_typ) es;
       let e = type_expr intf e in
       assert_astore typ es;
-      intf, Astore (tpath, es, e)
+      intf, new_decl (Astore (tpath, es, e)) intf
   | Ast.For (ppath, e1, dir, e2, eopt, decls) ->
       let tpath, new_intf = Tyenv.insert_path intf (Pident.ident ppath) Int in
       let e1 = type_expr intf e1 in
       let e2 = type_expr intf e2 in
       let eopt = Option.map (type_expr intf) eopt in
       let _, decls = type_decls new_intf rettyp decls in
-      intf, For (tpath, e1, dir, e2, eopt, decls)
+      intf, new_decl (For (tpath, e1, dir, e2, eopt, decls)) new_intf
   | Ast.While (e, decls) ->
       let e = type_expr intf e in
       let _, decls = type_decls intf rettyp decls in
-      intf, While (e, decls)
+      intf, new_decl (While (e, decls)) intf
   | Ast.Call (ppath, es) ->
       let tpath, typ = Tyenv.lookup_ppath intf ppath in
       let es = List.map (type_expr intf) es in
       begin match typ with
       | Lambda (typs, ret) ->
           List.iter2 (fun e t -> assert_typ e.expr_typ t) es typs;
-          intf, Call (tpath, es, ret)
+          intf, new_decl (Call (tpath, es, ret)) intf
       | _ -> failwith ((Pident.show_path ppath) ^ " is not function")
       end
   | Ast.Return None ->
       assert_typ rettyp Void;
-      intf, Return None
+      intf, new_decl (Return None) intf
   | Ast.Return (Some e) ->
       let e = type_expr intf e in
       assert_typ rettyp e.expr_typ;
-      intf, Return (Some e)
+      intf, new_decl (Return (Some e)) intf
 
 (*  *)
 and assert_astore typ es =

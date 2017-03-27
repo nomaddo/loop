@@ -46,7 +46,7 @@ let sa =
   ("--sa", Arg.Unit (on Flags.sa), "")
 
 let ra =
-  ("--sa", Arg.Unit (on Flags.ra), "")
+  ("--ra", Arg.Unit (on Flags.ra), "")
 
 let spec =
   [ ast; tast; ila; ilb; intf; dflag; opt; noopt; show_vars;

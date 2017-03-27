@@ -120,14 +120,9 @@ let simplify_bc map bc =
           (map, instr :: instrs)
     | Mov (op1, op2) ->
         let op2_ = try_replace map op2 in
-        if Operand.is_constant op2_ then begin
-          let map = Map.add op1 op2_ map in
-          (map, instrs) end
-        else begin
-          let instr = new_instr ++ Mov (op1, op2_) in
-          let map = Map.add op1 op2_ map in
-          (map, instr :: instrs)
-        end
+        let instr = new_instr ++ Mov (op1, op2_) in
+        let map = Map.add op1 op2_ map in
+        (map, instr :: instrs)
     | Str   (index_mode, op) ->
         let instr =
           new_instr
@@ -171,19 +166,11 @@ let simplify_bc map bc =
   ) (map, []) bc.instrs
   |> (fun (map, instrs) -> map, List.rev instrs)
 
-let dump_map map =
-  Format.printf "dump_map: begin@.";
-  Map.foldi (fun k v () -> Format.printf "%a -> %a@." Dump.dump_operand k Dump.dump_operand v) map ();
-  Format.printf "dump_map: end@."
-
 let remove_constant_move {Ir.entry} =
   flag_off flag;
-  let map = Map.empty in
-  let map = Ir_util.fold (entry.traverse_attr + 1) (fun map bc ->
-      let map, instrs = simplify_bc map bc in
-      bc.instrs <- instrs; map) map entry in
-  ignore map;
-  (* dump_map map; *)
+  Ir_util.iter (entry.traverse_attr + 1) (fun bc ->
+      let map, instrs = simplify_bc Map.empty bc in
+      bc.instrs <- instrs) entry;
   !flag
 
 let add op set =
@@ -226,14 +213,14 @@ let mark_instr set instr =
       let set = add op set in
       begin match index_mode with
         | Ir.Base_offset {base; offset} ->
-            let set = add offset set in
+            let set = add base (add offset set) in
             instr.instr_attrs <- Ir.Vars set :: instr.instr_attrs;
             set
       end
   | Ldr     (op, index_mode)  ->
       begin match index_mode with
         | Ir.Base_offset {base; offset} ->
-            let set = add offset set in
+            let set = add base (add offset set) in
             instr.instr_attrs <- Ir.Vars set :: instr.instr_attrs;
             set
       end
@@ -311,16 +298,19 @@ let remove_instr bc instr =
 
 let rec set_var_attr set bc =
   if bc.traverse_attr = 700 then set else begin
+    Format.printf "set_var_attr: %d@." bc.id;
     bc.traverse_attr <- 700;
     match bc.next with
     | None -> List.fold_left mark_instr set (List.rev bc.instrs)
     | Some _ ->
-        List.map (set_var_attr set) bc.succs
-        |> List.fold_left (fun acc set -> Set.union acc set) set
+        let set =
+          List.map (set_var_attr set) bc.succs
+          |> List.fold_left (fun acc set -> Set.union acc set) set in
+        List.fold_left mark_instr set (List.rev bc.instrs)
   end
 
-
 let remove_redundant_instr {label_name; args; entry} =
+  Ir_util.reset_traverse_attr entry;
   set_var_attr Set.empty entry |> ignore;
   Ir_util.iter 701 (fun bc ->
     List.iter (remove_instr bc) bc.instrs) entry

@@ -185,7 +185,7 @@ let rec transl_decls parent bc dealloc decls =
         bc.instrs <- bc.instrs @ List.map new_instr dealloc;
       bc, dealloc
   | h :: tl -> begin
-    match h with
+    match h.decl_core with
     | Typed_ast.Decl (typ, tpath, None) -> begin
         Hashtbl.add symbol_tbl tpath typ;
         match typ with
@@ -283,7 +283,7 @@ let rec transl_decls parent bc dealloc decls =
           let result_op = new_tv ++ transl_typ e.expr_typ in
           let instrs3 = transl_expr result_op e in
           let instrs4 =
-            [new_instr ++ Str (Base_offset {base = Operand.new_var tpath ++ transl_typ (Tyenv.find_path !global_intf tpath); offset = retop}, result_op)] in
+            [new_instr ++ Str (Base_offset {base = Operand.new_var tpath ++ transl_typ (Tyenv.find_path h.decl_intf tpath); offset = retop}, result_op)] in
           bc.instrs <- bc.instrs @ instrs1 @ instrs2 @ instrs3 @ instrs4;
           transl_decls parent bc dealloc tl
       | For    (tpath, e1, dir, e2, eopt, ds) ->
@@ -308,16 +308,22 @@ let rec transl_decls parent bc dealloc decls =
           (* initial *)
           let initial     = Ir.Bc.new_bc ~dyn_arrays:pre_initial.dyn_arrays ~stack_layout:pre_initial.stack_layout parent in
           let bct_var = new_tv ~attrs:[Bct] op1.typ in
-          let in1 =
+          let in1 = Str ((Base_offset {base=ind_var; offset=zero}), op1)in
+          let in2 =
             Mov (new_tv ~attrs:[Ind; Tpath tpath] (transl_typ e1.expr_typ), op1) in
-          let in2 = Sub (bct_var, op2, op1) in
-          initial.instrs <- List.map new_instr [in1; in2];
+          let in3 = Sub (bct_var, op2, op1) in
+          initial.instrs <- List.map new_instr [in1; in2; in3];
+
+          let size = typ_sizeof_static (Tyenv.find_path h.decl_intf tpath) in
+          let stack_layout_ = (tpath, size) :: initial.stack_layout  in
+          initial.stack_layout <- stack_layout_;
+
           Bc.concat_bc pre_initial initial;
 
           (* entrance *)
           let entrance    = Ir.Bc.new_bc ~dyn_arrays:initial.dyn_arrays
               ~stack_layout:initial.stack_layout parent in
-          let last_body, dealloc_ = transl_decls parent entrance [] ds in
+          let last_body, dealloc_ = transl_decls parent entrance dealloc ds in
           Flags.dmsg (fun () ->
             Format.printf "dealloc_ of for is@.";
             List.iter (Format.printf "%a@." Dump.dump_ila) (List.map new_instr dealloc_));
@@ -333,9 +339,15 @@ let rec transl_decls parent bc dealloc decls =
             | Some e -> transl_expr byop e in
           let in4 = f bct_var [bct_var; byop] in
           let in5 = g ind_var [ind_var; byop] in
-          let in6 = Instr.new_branch Le bct_var op2 entrance in
-          terminate.instrs <- in3 @ in4 @ in5
-            @ List.map (fun ila -> new_instr ila ) dealloc_ @ [in6];
+          let in6 = Instr.new_branch Ge bct_var op2 entrance in
+          let dealloc__ = List.filter (fun e -> not (List.mem e dealloc)) dealloc_
+                          |> List.map (fun ila -> new_instr ila ) in
+          Flags.dmsg (fun () ->
+            Format.printf "for: begin@.";
+            List.iter (Format.printf  "%a@." Dump.dump_ila) dealloc__;
+            Format.printf "for: end@.";
+          );
+          terminate.instrs <- in3 @ in4 @ in5 @ dealloc__ @ [in6];
           Bc.concat_bc terminate epilogue;
 
           let next_bc = Bc.new_bc ~dyn_arrays:bc.dyn_arrays

@@ -50,37 +50,44 @@ let rec add_chain op = function
       Instr.new_instr ++ Add (op, op, x) :: add_chain op xs
   | [] -> []
 
-let replace_index l op index_mode f =
+let replace_index stack dyn_arrays op index_mode f =
   match index_mode with
   | Base_offset {base; offset} -> begin
-      Format.printf "base = %a@." Ilb_dump.dump_operand base;
-      let _, b = split (fun (a, b) ->
-          Format.printf "%a %a@." Ilb_dump.dump_operand a Ilb_dump.dump_operand b;
-          a = base) l
-                 |> snd |> List.split in
-      let ops, i = sum b in
+      Flags.dmsg (fun () ->
+        Format.printf "replace_index: base = %a@." Ilb_dump.dump_operand base;
+        List.iter (fun (e, size) -> Format.printf "replace_index: stack: %a@." Ilb_dump.dump_tpath e) stack;
+      );
       let tv = Operand.new_tv Typ.I4 in
-      let instrs = add_chain tv ops in
-      if instrs = [] then
-        if Operand.is_zero offset then
-          [f op (Base_offset {base = frame_pointer;
-                              offset = Operand.new_operand (Operand.Iconst i) Typ.I4})]
-        else
-          [Add (tv, Operand.new_operand (Operand.Iconst i) Typ.I4, offset)
-           |> Instr.new_instr;
-           f op (Base_offset {base = frame_pointer; offset = tv})]
-      else
-        [Mov (tv, Operand.new_operand (Operand.Iconst i) Typ.I4) |> Instr.new_instr] @
-          instrs @
-          [Add (tv, tv, offset) |> Instr.new_instr] @
-          [f op (Base_offset {base = frame_pointer; offset = tv}) ]
+      let instrs =
+        try
+          match base.Operand.opcore with
+          | Operand.Var tpath ->
+              let i, _ = List.findi (fun _ (e, _) -> tpath = e) stack in
+              let offset_n = List.take (i - 1) stack |> List.fold_left (fun sum (_, i) -> sum + i) 0 in
+              let offset = Operand.new_operand (Operand.Iconst offset_n) Typ.I4 in
+              [new_instr ++ Add (tv, stack_pointer, offset)]
+          | _ -> raise Not_found
+        with Not_found ->       (* variable array *)
+          let i, _ = List.findi (fun i (e, _) -> base = e) dyn_arrays in
+          let offset_n =
+            List.fold_left (fun sum (_, i) -> sum + i) 0 stack in
+          let offset = Operand.new_operand (Operand.Iconst offset_n) Typ.I4 in
+          let instr = new_instr ++ Add (tv, stack_pointer, offset) in
+          let instrs =
+            List.take (i - 1) dyn_arrays
+            |> List.fold_left (fun instrs (_, op) ->
+              new_instr ++ Add (tv, tv, op) :: instrs) [] |> List.rev in
+          instr :: instrs in
+      instrs @ [f op (Base_offset {base = tv; offset})]
     end
 
-let calc_ldr l op index_mode =
-  replace_index l op index_mode (fun op index -> Ldr (op, index) |> Instr.new_instr)
+let calc_ldr stack dyn_arrays op index_mode =
+  replace_index stack dyn_arrays op index_mode
+    (fun op index -> Ldr (op, index) |> Instr.new_instr)
 
-let calc_str l index_mode op =
-  replace_index l op index_mode (fun op index -> Str (index, op) |> Instr.new_instr)
+let calc_str stack dyn_arrays index_mode op =
+  replace_index stack dyn_arrays op index_mode
+    (fun op index -> Str (index, op) |> Instr.new_instr)
 
 let mark_arg args index_mode =
   begin match index_mode with
@@ -97,13 +104,13 @@ let alloc_bc (l, args) bc =
     match instr.instr_core with
     | Alloc (op1, op2) ->
         Instr.replace bc instr (new_instr (Sub (stack_pointer, stack_pointer, op2)));
-        (op1, op2) :: acc ,args
+        acc ,args
     | Dealloc (op1, op2) ->
         Instr.replace bc instr (new_instr (Add (stack_pointer, stack_pointer, op2)));
-        delete op1 acc, args
+        acc, args
     | Ldr (op, index_mode) ->
         mark_arg args index_mode;
-        let instrs = calc_ldr acc op index_mode in
+        let instrs = calc_ldr acc bc.dyn_arrays op index_mode in
         Flags.dmsg (fun () ->
           Format.printf "alloc_bc: %a to %a@." Ilb_dump.dump_ilb instr
             (fun fmt -> List.iter (Format.fprintf fmt "%a" Ilb_dump.dump_ilb)) instrs);
@@ -111,7 +118,7 @@ let alloc_bc (l, args) bc =
         acc, args
     | Str (index_mode, op) ->
         mark_arg args index_mode;
-        let instrs = calc_str acc index_mode op in
+        let instrs = calc_str acc bc.dyn_arrays index_mode op in
         Flags.dmsg (fun () ->
           Format.printf "alloc_bc: %a to %a@." Ilb_dump.dump_ilb instr
             (fun fmt -> List.iter (Format.fprintf fmt "%a" Ilb_dump.dump_ilb)) instrs);
@@ -190,8 +197,14 @@ let arg_to_tv {Ir.label_name; args; entry} =
             Map.add arg (`Reg tv) map end) Map.empty args in
   ignore (Ir_util.fold 100 arg_to_tv_bc map entry)
 
+let max_stack set bc =
+  let set_ = Set.of_list bc.stack_layout in
+  Set.union set set_
+
 let stack_allocate {Ir.label_name; args; entry} =
-  ignore (Ir_util.fold 200 alloc_bc ([], args) entry)
+  let max_set = Ir_util.fold 101 max_stack Set.empty entry in
+  let stack = Set.to_list max_set in
+  ignore (Ir_util.fold 200 alloc_bc (stack, args) entry)
 
 let transl {funcs; memories} =
   List.iter arg_to_tv funcs;

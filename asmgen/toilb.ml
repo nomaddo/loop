@@ -33,6 +33,8 @@ let rec transl_bc hash memories bc =
   let instrs = List.map (transl_instr hash memories) bc.instrs |> List.flatten in
   let bbc = access_with_int hash bc in
   bbc.instrs <- instrs;
+  bbc.stack_layout <- bc.stack_layout;
+  bbc.dyn_arrays <- bc.dyn_arrays;
   bbc.next <- try (Option.map (BcMap.find hash) bc.next) with Not_found -> None
 
 let transl_func memories {Ir.label_name; args; entry; } =

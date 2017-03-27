@@ -46,6 +46,7 @@ let compare_op k op1 op2 =
     | Eq -> f = 0.
     | Ne -> f != 0. in
   let op = constant_folding op2 op1 (-) (-.) in
+  Flags.dmsg (fun () -> Format.printf "compare_op: %a@." Dump.dump_operand op);
   match op.opcore with
   | Iconst i -> cmpi k i
   | Rconst s -> cmpr k s
@@ -111,8 +112,9 @@ let simplify_bc map bc =
     | Mov (op1, op2) ->
         let op2 = try_replace map op2 in
         if Operand.is_constant op2 then begin
+        let instr = new_instr ++ Mov (op1, op2) in
         let map = Map.add op1 op2 map in
-          (map, instrs) end
+          (map, instr :: instrs) end
         else begin
           let instr = new_instr ++ Mov (op1, op2) in
           let map = Map.add op1 op2 map in
@@ -181,13 +183,10 @@ let dump_map map =
 
 let func {Ir.entry} =
   flag_off flag;
-  let map = Map.empty in
-  let map = Ir_util.fold (entry.traverse_attr + 1) (fun map bc ->
-      let map, instrs = simplify_bc map bc in
-      bc.instrs <- instrs; map) map entry in
+  Ir_util.iter (entry.traverse_attr + 1) (fun bc ->
+      let map, instrs = simplify_bc Map.empty bc in
+      bc.instrs <- instrs) entry;
   Ir_util.set_control_flow entry;
-  ignore map;
-  (* dump_map map; *)
   !flag
 
 let add op set =
