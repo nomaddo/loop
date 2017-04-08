@@ -1,8 +1,7 @@
 int(int) succ = prim succ;
 
-void main()
+int main()
 {
-  int i = succ(12);
-  succ(3);
-  return;
+  int i = succ(12) * 4;
+  return i;
 }

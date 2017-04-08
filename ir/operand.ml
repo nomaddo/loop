@@ -14,7 +14,7 @@ type opcore =
 
    raではレジスタ情報を書き込む前にコピーしてから書き込む *)
 type operand =
-  { opcore: opcore; typ: typ;
+  { opcore: opcore; typ: typ; id: int;
     mutable operand_attrs: operand_attr list }
 
 and operand_attr =
@@ -22,30 +22,28 @@ and operand_attr =
   | Ind
   | Bct
   | Arg of int
-  | Reg of reg (* 種類はstringで埋め込む *)
+  | Reg of Typ.typ * int
 [@@deriving show]
 
-and reg = {kind: string; num: int}
-
 let new_operand ?(attrs=[]) opcore typ =
-  { opcore; typ; operand_attrs=attrs }
+  { opcore; typ; operand_attrs=attrs; id = Etc.cnt () }
 
 let count, reset =
   let r = ref 0 in
   ((fun () -> incr r; !r), (fun () -> r := 0))
 
 let new_tv ?(attrs=[]) ?(opt=None) typ =
-    { opcore = Tv (count ()); typ;
+    { opcore = Tv (count ()); typ; id = Etc.cnt ();
       operand_attrs = attrs @ match opt with None -> []
                                    | Some tpath -> [Tpath tpath]}
 
 let hash = Hashtbl.create 10
 
-let new_var tpath typ =
+let new_var ?(attrs=[]) tpath typ =
   try
     Hashtbl.find hash tpath
   with Not_found ->
-    let op = new_operand (Var tpath) typ in
+    let op = new_operand ~attrs (Var tpath) typ in
     Hashtbl.add hash tpath op;
     op
 
@@ -59,21 +57,23 @@ let is_zero op =
   | _ -> false
 
 let copy op =
-  { opcore = op.opcore;
+  { opcore = op.opcore; id = Etc.cnt ();
     typ = op.typ;
     operand_attrs = List.map (fun x -> x) op.operand_attrs }
 
 let get_reg instr =
   let regs = List.filter
-      (function Reg {kind; num} -> true | _ -> false) instr.operand_attrs in
+      (function Reg _ -> true | _ -> false) instr.operand_attrs in
   match regs with
-  | [Reg x] -> x
+  | [Reg (opt, n)] -> (opt, n)
   | _ -> failwith "get_reg"
 
 let is_marked instr =
   let regs = List.filter
-      (function Reg {kind; num} -> true | _ -> false) instr.operand_attrs in
+      (function Reg _ -> true | _ -> false) instr.operand_attrs in
   match regs with
   | [] -> false
   | [x] -> true
   | _ -> failwith "is_marked"
+
+let dummy typ = new_operand (Tv (-1)) typ

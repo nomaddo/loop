@@ -24,6 +24,13 @@ let rec iter num f (bc: 'a basic_block) =
     List.iter (iter num f) bc.succs
   end
 
+let rec iter_ num f acc bc =
+  if bc.traverse_attr = num then () else begin
+    f acc bc;
+    bc.traverse_attr <- num;
+    List.iter (iter_ num f acc) bc.succs
+  end
+
 let reset_traverse_attr bc = iter (-100) (fun _ -> ()) bc
 
 let rec find_path (x: 'a basic_block) (y: 'a basic_block) =

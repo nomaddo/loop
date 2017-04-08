@@ -10,8 +10,6 @@ let zero = Operand.new_operand (Iconst 0) I4
 
 let symbol_tbl: (Tident.path, Tyenv.intf Typed_ast.typ) Hashtbl.t = Hashtbl.create 10
 
-let global_intf : Tyenv.intf ref = ref (Obj.magic ())
-
 let transl_typ typ =
   match typ with
   | Void -> failwith "void has no values"
@@ -24,6 +22,13 @@ let transl_rettyp typ =
   match typ with
   | Lambda (types, rettyp) -> transl_typ rettyp
   | _ -> failwith "transl_rettyp"
+
+let lambda_to_funtyp = function
+  | Lambda (typs, ret) ->
+      {ret_typ = (match ret with Void -> None
+                              | _ -> Some (transl_typ ret));
+       args = List.map transl_typ typs }
+  | _ -> failwith "lambda_to_funtyp"
 
 let rec typ_sizeof op typ =
   match typ with
@@ -49,13 +54,11 @@ and typ_sizeof_static typ =
     | Lambda _ -> 4
     | _ -> failwith "type_sizeof_static2"
 
-
 and transl_expr op e =
   match e.Typed_ast.expr_core with
   | Typed_ast.Var tpath ->
       let tmp = Operand.new_tv ++ transl_typ e.Typed_ast.expr_typ in
-      let operand =
-        new_operand (Var tpath) (transl_typ e.expr_typ) in
+      let operand = new_var tpath (transl_typ e.expr_typ) in
       [Instr.new_instr ++ Ir.Ld (tmp, Base_offset {base=operand; offset=zero})] @
       [Instr.new_instr ++ Ir.Mov (op, tmp)]
   | Iconst int ->
@@ -84,8 +87,10 @@ and transl_expr op e =
           begin match Tyenv.find_prim ident with
             | None ->
                 let ops = List.map (fun e -> Operand.new_tv (transl_typ e.expr_typ)) es in
+                let funtyp =
+                  lambda_to_funtyp (Hashtbl.find symbol_tbl tpath) in
                 List.fold_left2 (fun  l op e -> transl_expr op e @ l) [] ops es
-                @ [new_instr ++ Ir.Call (Some op, tpath, ops)]
+                @ [new_instr ++ Ir.Call (Some op, (tpath, funtyp), ops)]
             | Some s ->
                 transl_prim es op op.typ s
           end
@@ -178,7 +183,7 @@ let rec is_static_array = function
       (match e.expr_core with Iconst _ -> true | _ -> false) && is_static_array typ
   | _ -> true
 
-let rec transl_decls parent bc dealloc decls =
+let rec transl_decls parent args bc dealloc decls =
   match decls with
   | [] ->
       if Instr.include_ret bc then () else
@@ -195,9 +200,10 @@ let rec transl_decls parent bc dealloc decls =
               let size = typ_sizeof_static typ_ in
               Flags.dmsg (fun () -> Format.printf "static array %s@."
                   (Tident.get_name tpath));
-              let stack_layout_ = (tpath, size) :: bc.stack_layout  in
+              let stack_layout_ = (new_var tpath (transl_typ typ_), size) ::
+                  bc.stack_layout  in
               bc.stack_layout <- stack_layout_;
-              transl_decls parent bc dealloc tl
+              transl_decls parent args bc dealloc tl
             with _ ->
               Flags.dmsg (fun () -> Format.printf "dyn array %s@."
                   (Tident.get_name tpath));
@@ -206,25 +212,25 @@ let rec transl_decls parent bc dealloc decls =
               let var = Operand.new_var tpath ++ transl_typ typ in
               bc.instrs <- bc.instrs @ instrs @ [new_instr ++ Alloc (var, op)];
               bc.dyn_arrays <- (var, op) :: bc.dyn_arrays;
-              transl_decls parent bc (Dealloc (var, op) :: dealloc) tl
+              transl_decls parent args bc (Dealloc (var, op) :: dealloc) tl
             end
         | _ ->
             let size = typ_sizeof_static typ in
-            let stack_layout_ = (tpath, size) :: bc.stack_layout  in
+            let stack_layout_ = (new_var tpath (transl_typ typ), size) :: bc.stack_layout  in
             bc.stack_layout <- stack_layout_;
-            transl_decls parent bc dealloc tl
+            transl_decls parent args bc dealloc tl
       end
     | Decl (typ, tpath, Some e) ->
         Hashtbl.add symbol_tbl tpath typ;
         let size = typ_sizeof_static typ in
-        let stack_layout_ = (tpath, size) :: bc.stack_layout  in
+        let stack_layout_ = (new_var tpath (transl_typ typ), size) :: bc.stack_layout  in
         bc.stack_layout <- stack_layout_;
         let tmp = Operand.new_tv (transl_typ e.expr_typ) in
         let instrs = transl_expr tmp e in
         bc.instrs <- bc.instrs @ instrs @
             [new_instr ++ Str (Base_offset {base=new_var tpath ++ transl_typ typ;
                                             offset=zero}, tmp)];
-        transl_decls parent bc dealloc tl
+        transl_decls parent args bc dealloc tl
     | If (cond, d, dopt) -> begin
           let op = new_tv I4 in
           let then_bc = Bc.new_bc ~stack_layout:bc.stack_layout ~dyn_arrays:bc.dyn_arrays parent in
@@ -248,21 +254,21 @@ let rec transl_decls parent bc dealloc decls =
               | _ -> assert false
             with _ -> transl_expr op cond, [Instr.new_branch Ne op false_op then_bc] in
           bc.instrs <- bc.instrs @ instrs @ binstr;
-          let last_then, dealloc_ = transl_decls parent then_bc dealloc d in
+          let last_then, dealloc_ = transl_decls parent args  then_bc dealloc d in
           List.iter (fun ila -> Instr.append_last last_then ++ new_instr ila) dealloc_;
           Bc.concat_bc last_then next_bc;
           begin match dopt with
             | None ->
                 Bc.concat_bc bc next_bc;
-                transl_decls parent next_bc dealloc tl
+                transl_decls parent args next_bc dealloc tl
             | Some d' ->
                 let else_bc = Bc.new_bc ~stack_layout:bc.stack_layout ~dyn_arrays:bc.dyn_arrays parent in
-                let last_else, dealloc__ = transl_decls parent else_bc dealloc d' in
+                let last_else, dealloc__ = transl_decls parent args  else_bc dealloc d' in
                 List.iter (fun ila ->
                   Instr.append_last last_else ++ new_instr ila) dealloc__;
                 Bc.concat_bc bc else_bc;
                 Bc.concat_bc last_else next_bc;
-                transl_decls parent next_bc dealloc tl
+                transl_decls parent args next_bc dealloc tl
           end
         end
       | Assign (tpath, e) ->
@@ -272,7 +278,7 @@ let rec transl_decls parent bc dealloc decls =
           let instrs2 =
             [new_instr ++ Str (Base_offset { base = var; offset = zero}, op)] in
           bc.instrs <- bc.instrs @ instrs1 @ instrs2;
-          transl_decls parent bc dealloc tl
+          transl_decls parent args bc dealloc tl
       | Astore (tpath, es, e) ->
           let ops = List.map (fun e -> new_tv ++ transl_typ e.expr_typ) es in
           let instrs1 =
@@ -285,9 +291,9 @@ let rec transl_decls parent bc dealloc decls =
           let instrs4 =
             [new_instr ++ Str (Base_offset {base = Operand.new_var tpath ++ transl_typ (Tyenv.find_path h.decl_intf tpath); offset = retop}, result_op)] in
           bc.instrs <- bc.instrs @ instrs1 @ instrs2 @ instrs3 @ instrs4;
-          transl_decls parent bc dealloc tl
+          transl_decls parent args bc dealloc tl
       | For    (tpath, e1, dir, e2, eopt, ds) ->
-          let ind_var = new_operand ~attrs:[Ind] (Var tpath) (transl_typ e1.expr_typ) in
+          let ind_var = new_var ~attrs:[Ind] tpath (transl_typ e1.expr_typ) in
 
           (* pre_initial *)
           let pre_initial = Ir.Bc.new_bc ~dyn_arrays:bc.dyn_arrays
@@ -315,7 +321,7 @@ let rec transl_decls parent bc dealloc decls =
           initial.instrs <- List.map new_instr [in1; in2; in3];
 
           let size = typ_sizeof_static (Tyenv.find_path h.decl_intf tpath) in
-          let stack_layout_ = (tpath, size) :: initial.stack_layout  in
+          let stack_layout_ = (new_var tpath I4, size) :: initial.stack_layout  in
           initial.stack_layout <- stack_layout_;
 
           Bc.concat_bc pre_initial initial;
@@ -323,7 +329,7 @@ let rec transl_decls parent bc dealloc decls =
           (* entrance *)
           let entrance    = Ir.Bc.new_bc ~dyn_arrays:initial.dyn_arrays
               ~stack_layout:initial.stack_layout parent in
-          let last_body, dealloc_ = transl_decls parent entrance dealloc ds in
+          let last_body, dealloc_ = transl_decls parent args entrance dealloc ds in
           Flags.dmsg (fun () ->
             Format.printf "dealloc_ of for is@.";
             List.iter (Format.printf "%a@." Dump.dump_ila) (List.map new_instr dealloc_));
@@ -353,11 +359,11 @@ let rec transl_decls parent bc dealloc decls =
           let next_bc = Bc.new_bc ~dyn_arrays:bc.dyn_arrays
               ~stack_layout:bc.stack_layout parent in
           Bc.concat_bc epilogue next_bc;
-          transl_decls parent next_bc dealloc tl
+          transl_decls parent args next_bc dealloc tl
       | While  (e, ds)                        -> begin
           (* entrance *)
           let entrance    = Ir.Bc.new_bc ~dyn_arrays:bc.dyn_arrays ~stack_layout:bc.stack_layout parent in
-          let last_bc, dealloc_ = transl_decls parent entrance [] ds in
+          let last_bc, dealloc_ = transl_decls parent args entrance [] ds in
 
           (* terminate *)
           let terminate   = Ir.Bc.new_bc ~dyn_arrays:entrance.dyn_arrays
@@ -381,22 +387,24 @@ let rec transl_decls parent bc dealloc decls =
           let next_bc = Bc.new_bc ~dyn_arrays:bc.dyn_arrays
               ~stack_layout:bc.stack_layout parent in
           Bc.concat_bc epilogue next_bc;
-          transl_decls parent next_bc dealloc tl;
+          transl_decls parent args next_bc dealloc tl;
         end
       | Call   (Tident.Tident ident as tpath, es, typ) ->
           begin match Tyenv.find_prim ident with
             | None ->
                 let ops = List.map (fun e -> Operand.new_tv (transl_typ e.expr_typ)) es in
+                let funtyp =
+                  lambda_to_funtyp (Hashtbl.find symbol_tbl tpath) in
                 let instrs =
                   List.fold_left2 (fun  l op e -> transl_expr op e @ l) [] ops es
-                  @ [new_instr ++ Ir.Call (None, tpath, ops)] in
+                  @ [new_instr ++ Ir.Call (None, (tpath, funtyp), ops)] in
                 bc.instrs <- bc.instrs @ instrs;
             | Some s ->
                 let op = new_tv I4 in
                 let instrs = transl_prim es op op.typ s in
                 bc.instrs <- bc.instrs @ instrs;
           end;
-          transl_decls parent bc dealloc tl
+          transl_decls parent args bc dealloc tl
       | Return eopt ->
           let instrs, ret =
             match eopt with
@@ -411,7 +419,7 @@ let rec transl_decls parent bc dealloc decls =
 
 let transl_args args =
   List.map (fun (tpath, typ) ->
-    new_operand (Var tpath) (transl_typ typ)) args
+    new_tv ~attrs:[Tpath tpath] (transl_typ typ)) args
 
 let check_ret bc =
   match bc.next with
@@ -450,10 +458,21 @@ let transl_toplevel (f,g,m) bc mod_name = function
                 end
             | None -> ()) bc.preds;
         end in
-
+      let set_init_instr bc args =
+        List.iter (fun op ->
+          let Tpath tpath = List.find (function Tpath tpath -> true
+                                              | _ -> false) op.operand_attrs in
+          let base = new_var tpath op.typ in
+          Instr.append_last bc (Instr.new_instr
+              (Str (Base_offset {base; offset=zero}, op)));
+          bc.stack_layout <- (base, Typ.sizeof base.typ) :: bc.stack_layout
+        ) args
+      in
+      let args = transl_args args in
       let total = Loop_info.total_loop () in
       let entry = Bc.new_bc ~dyn_arrays:[] ~stack_layout:[] total in
-      transl_decls total entry [] decls |> ignore;
+      set_init_instr entry args;
+      transl_decls total args entry [] decls |> ignore;
       Ir_util.set_control_flow entry;
       while !flag do
         flag := false;
@@ -466,8 +485,7 @@ let transl_toplevel (f,g,m) bc mod_name = function
         with exn -> Format.printf "%a@." Dump.dump_bcs entry; raise exn end;
       let func =
         { label_name = Tident.make_label mod_name tpath;
-          args = transl_args args;
-          entry; loops = [] } in
+          args; entry; loops = [] } in
       (func::f, g, m)
   | Global_var (typ, tpath, None) ->
       let mx = { shape = typ_sizeof_static typ; name = tpath } in
@@ -481,7 +499,6 @@ let transl_toplevel (f,g,m) bc mod_name = function
 
 let implementation mod_name intf tops =
   let bc = Bc.new_bc Loop_info.dummy_loop  in
-  global_intf := intf;
   let funcs, memories, _ =
     List.map (transl_toplevel ([],[],[]) bc mod_name) tops
     |> List.fold_left (fun (a, b, c) (x, y, z) ->

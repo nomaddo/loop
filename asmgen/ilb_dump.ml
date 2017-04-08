@@ -24,6 +24,11 @@ and dump_args fmt l =
   List.iter (Format.fprintf fmt "%a," dump_operand) l;
   Format.fprintf fmt "}"
 
+and dump_reg fmt (typ, nth) =
+  match typ with
+  | I4 -> Format.fprintf fmt "r%d" nth
+  | R8 -> Format.fprintf fmt "d%d" nth
+
 and dump_operand fmt op =
   match op.opcore with
   | Iconst i -> Format.fprintf fmt "%d" i
@@ -32,8 +37,9 @@ and dump_operand fmt op =
         dump_tpath tpath dump_typ op.typ
   | Tv     i -> begin
       try
-        let Arg j = List.find (function Arg i -> true | _ -> false) op.operand_attrs in
-        Format.fprintf fmt "@arg_%d(%d)(%a)" j i dump_typ op.typ
+        let Reg (typ, nth) = List.find (function Reg _ -> true
+                                               | _ -> false) op.operand_attrs in
+        Format.fprintf fmt "@%d(%a)(%a)" i dump_typ op.typ dump_reg (typ, nth)
       with Not_found ->
         Format.fprintf fmt "@%d(%a)" i dump_typ op.typ
     end
@@ -44,7 +50,6 @@ and dump_tpath fmt = function
   | Tident.Tident id -> Format.fprintf fmt "%s(%d)" id.name id.id
 
 and dump_typ fmt = function
-  | I2 -> Format.fprintf fmt "I2"
   | I4 -> Format.fprintf fmt "I4"
   | R8 -> Format.fprintf fmt "R8"
 
@@ -63,7 +68,7 @@ and dump_bc fmt bc =
   Etc.dmsg Flags.show_stack (fun () ->
     List.iter (fun (op1, i) ->
       if bc.stack_layout = [] then Format.printf "stack: none@." else
-        Format.printf "stack: %a: %d@." dump_tpath op1 i) bc.stack_layout);
+        Format.printf "stack: %a: %d@." dump_operand op1 i) bc.stack_layout);
 
   Format.fprintf fmt "prevs: %a@." (fun fmt ->
     List.iter (fun (bc:'a Ir.basic_block) -> Format.fprintf fmt "%d " bc.id)) bc.preds;
@@ -124,7 +129,7 @@ and dump_ilb fmt instr =
         | Le -> "mle" | Lt -> "mlt" | Ge -> "mge"
         | Gt -> "mgt" | Eq -> "meq" | Ne -> "mne" in
       Format.fprintf fmt "%s %a, %a %a@." msg d x d y dv instr
-  | Call (opt, tpath, ops) ->
+  | Call (opt, (tpath, _), ops) ->
       begin match opt with
       | None ->
         Format.fprintf fmt "call %a, %a %a@." dump_tpath tpath dv instr

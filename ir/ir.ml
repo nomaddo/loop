@@ -8,7 +8,7 @@ type 'a basic_block = {
   mutable instrs : 'a instr list;
 
   (* staticなstackの状態 *)
-  mutable stack_layout : (Tident.path * int) list;
+  mutable stack_layout : (Operand.operand * int) list;
 
   (* ダイナミックに確保された配列 *)
   mutable dyn_arrays : (Operand.operand * Operand.operand) list;
@@ -52,7 +52,7 @@ and ila =
   (* op1: 代入先, op2: 代入する値, op3/op4 比較するオペランド*)
   | Bmov   of br_kind * operand * operand * operand * operand
   (* 返り値を捨てる場合には第一operandがNoneになる *)
-  | Call   of operand option * Tident.path * operand list
+  | Call   of operand option * (Tident.path * Typ.funtyp) * operand list
   | Ret    of operand option
   | Alloc of operand * operand (* 可変長配列の確保 *)
   | Dealloc of operand * operand (* 可変長配列の解放 *)
@@ -158,6 +158,14 @@ module Instr = struct
     let rec f = function
       | x :: xs ->
           if x = old then news @ xs else x :: f xs
+      | [] -> news in
+    let new_instrs = f bc.instrs in
+    bc.instrs <- new_instrs
+
+  let insert_instrs bc old news =
+    let rec f = function
+      | x :: xs ->
+          if x = old then news @ x :: xs else x :: f xs
       | [] -> news in
     let new_instrs = f bc.instrs in
     bc.instrs <- new_instrs

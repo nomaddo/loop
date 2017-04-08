@@ -29,7 +29,14 @@ and dump_operand fmt op =
   | Rconst s -> Format.fprintf fmt "%s" s
   | Var    tpath -> Format.fprintf fmt "$%a(%a)"
         dump_tpath tpath dump_typ op.typ
-  | Tv     i -> Format.fprintf fmt "@%d(%a)" i dump_typ op.typ
+  | Tv     i ->
+      begin try
+        let Tpath tpath = List.find (function Tpath _ -> true
+                                            | _ -> false)op.operand_attrs in
+        Format.fprintf fmt "@%d(%a, %a)" i dump_typ op.typ dump_tpath tpath
+      with Not_found ->
+        Format.fprintf fmt "@%d(%a)" i dump_typ op.typ
+      end
   | Sp       -> Format.fprintf fmt "sp"
   | Fp       -> Format.fprintf fmt "fp"
 
@@ -37,7 +44,6 @@ and dump_tpath fmt = function
   | Tident.Tident id -> Format.fprintf fmt "%s(%d)" id.name id.id
 
 and dump_typ fmt = function
-  | I2 -> Format.fprintf fmt "I2"
   | I4 -> Format.fprintf fmt "I4"
   | R8 -> Format.fprintf fmt "R8"
 
@@ -56,7 +62,7 @@ and dump_bc fmt bc =
   Etc.dmsg Flags.show_stack (fun () ->
     List.iter (fun (op1, i) ->
       if bc.stack_layout = [] then Format.printf "stack: none@." else
-      Format.printf "stack: %a: %d@." dump_tpath op1 i) bc.stack_layout);
+      Format.printf "stack: %a: %d@." dump_operand op1 i) bc.stack_layout);
 
   Format.fprintf fmt "prevs: %a@." (fun fmt ->
     List.iter (fun (bc:'a Ir.basic_block) -> Format.fprintf fmt "%d " bc.id)) bc.preds;
@@ -103,7 +109,7 @@ and dump_ila fmt instr =
         | Le -> "mle" | Lt -> "mlt" | Ge -> "mge"
         | Gt -> "mgt" | Eq -> "meq" | Ne -> "mne" in
       Format.fprintf fmt "%s %a, %a, %a, %a@." msg d x d y d z d z
-  | Call (opt, tpath, ops) ->
+  | Call (opt, (tpath, _), ops) ->
       begin match opt with
       | None ->
         Format.fprintf fmt "call %a, %a@." dump_tpath tpath
